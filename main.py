@@ -4,6 +4,7 @@ from datetime import datetime
 import subprocess
 import os
 
+global baseRes
 global AppInfo
 AppInfo = """MagickTest
 version B0.2
@@ -11,7 +12,7 @@ made by Anne Mocha
 19/12/2019
 This is not even close to complete.
 """
-
+baseRes = 600
 
 app = gui("Magiktest","1500x800")
 app.setBg("dark gray", override=True,tint=True)
@@ -38,21 +39,26 @@ def editorBtn(button):
 	button = button.lower()
 	log(f'editor btn: {button}')
 	if button == 'fuckupBtn':
-		fuckupEffects()
+		randomizeEffects()
 	if button == 'apply effects':
 		app.thread(loadPreview)
 
-def fuckupEffects():
+def randomizeEffects():
 	return None
 
 def tbFunc(button):
 	button = button.lower()
 	log(f'toolbar btn: {button}',n=0)
 	if button == 'open':
-		og_path = selectfile()
+		og_path = selectFile()
 		if og_path != '':
 			loadOriginal(og_path)
 			loadPreview()
+	if button == 'save':
+		log(f'Save box open')
+		export_path = app.saveBox(title='Save')
+		if export_path == '':
+			log(f'Save cancelled',n=0)
 	if button == 'settings':
 		app.showSubWindow("preferences")
 	if button == 'refresh':
@@ -79,12 +85,49 @@ def refresh_images():
 	if pv_path != "No image generated":
 		app.thread(loadPreview)
 
+def collect_args():
+	log('collecting arguments')
+	args = ''
+	try:
+		custom_args = app.getEntry("Custom arguments")
+		if custom_args == '':
+			log('No custom arguments',n=0)
+		else:
+			log(f'custom arguments: {custom_args}',n=0)
+		args = f'{args} {custom_args}'
+	except BaseException as e:
+		log(e,n=2)
+	if app.getCheckBox('box_ContentAware'):
+		CA_scale = app.getScale('scale_ContentAware')
+		scaleup = f'{round(100*(1+CA_scale/10),2)}%'
+		scaledown = f'{round(1/(1+CA_scale/10)*100,2)}%'
+		args = f'{args} -scale {scaleup}x{scaleup} -liquid-rescale {scaledown}x{scaledown}'
+	if app.getCheckBox('box_Rotation'):
+		args = f'{args} -rotate {app.getScale("scale_Rotation")}'
+	if app.getCheckBox('box_flipping_hor'):
+		args = f'{args} -flop'
+	if app.getCheckBox('box_flipping_vert'):
+		args = f'{args} -flip'
+	if app.getCheckBox('box_implode'):
+		implode_val = app.getEntry('entry_implode')
+		if implode_val<0:
+			implode_val = implode_val*-1
+		args = f'{args} -implode {implode_val}'
+	if app.getCheckBox('box_explode'):
+		explode_val = app.getEntry('entry_explode')
+		if explode_val<0:
+			explode_val = explode_val*-1
+		explode_val = explode_val*-1
+		args = f'{args} -implode {explode_val}'
+	log(f'Arguments collected',n=1)
+	log(f'Arguments: {args}',n=0)
+	return args
+
 def generateOriginal(path_input):
 	log("generating og image")
 	try:
-		res_quality = app.getScale("Preview Scale")
 		try:
-			os.system(f'magick convert "{path_input}" -scale {res_quality}%x{res_quality}% "temp_og.gif"')
+			os.system(f'magick convert "{path_input}" -scale {view_res}x{view_res} "temp_og.gif"')
 		except BaseException as e:
 			log(e,n=2)
 		app.setLabel("lbl_og_path",path_input)
@@ -92,16 +135,6 @@ def generateOriginal(path_input):
 	except BaseException as e:
 		log(e,n=2)
 		return 'image_loading_error.gif'
-
-def collect_args():
-	log('collecting arguments')
-	try:
-		custom_args = app.getEntry("Custom arguments")
-		log(f'custom arguments: {custom_args}',n=0)
-		return custom_args
-	except BaseException as e:
-		log(e,n=2)
-		return ''
 
 def generatePreview():
 	log('generating preview')
@@ -115,32 +148,31 @@ def generatePreview():
 		if og_image == "No image loaded":
 			log('No original image loaded', n=2)
 			return 'no_image_loaded.gif'
-		res_quality = app.getScale("Preview Scale")
 		args = collect_args()
 		app.reloadImage("preview_image", 'loading.gif')
-		magick_output = os.system(f'magick "{og_image}" {str(args)} -scale {res_quality}%x{res_quality}% "temp_pv.gif"')
+		log(f'full command: magick "temp_og.gif" {str(args)} -scale {view_res}x{view_res} "temp_pv.gif"')
+		magick_output = os.system(f'magick "temp_og.gif" {str(args)} -scale {view_res}x{view_res} "temp_pv.gif"')
+#		magick_output = os.system(f'magick "{og_image}" {str(args)} "temp_pv.gif"')
 		if magick_output > 0:
-			log('Magick error: likely bad args',n=2)
 			raise Exception
 		log('preview generated')
 		return 'temp_pv.gif'
 	except Exception as e:
+		log('Magick error: check custom arguments.',n=2,alert=True)
 		return 'image_loading_error.gif'
 
 
 def loadOriginal(path_input):
-	res_quality = app.getScale("Preview Scale")
-	app.setImageSize("original_image", 900*res_quality/100,900*res_quality/100)
+	app.setImageSize("original_image", view_res,view_res)
 	app.reloadImage("original_image", generateOriginal(path_input))
 	return None
 
 def loadPreview():
-	res_quality = app.getScale("Preview Scale")
-	app.setImageSize("preview_image", 900*res_quality/100,900*res_quality/100)
+	app.setImageSize("preview_image", view_res,view_res)
 	app.reloadImage("preview_image", generatePreview())
 	return None
 
-def selectfile():
+def selectFile():
 	log('file select window')
 	file = app.openBox(title='Select File', fileTypes=[('images', '*.png'), ('images', '*.jpg')])
 	if file != '':
@@ -148,6 +180,9 @@ def selectfile():
 	else:
 		log(f'No new file selected',n=0)
 	return file
+
+def saveFile():
+	return None 
 
 
 def openAbout():
@@ -163,20 +198,16 @@ app.setSticky('news')
 #'The big part'
 app.startLabelFrame("bigLEFT",label='original image',row=0,column=0)
 app.setSticky('n')
-app.addLabel('lbl_og_path',"No image loaded")
 app.setSticky('')
 #left big frame (og image)
 app.addImage("original_image", 'no_image_loaded.gif')
-app.addLabel("left big area")
 app.stopLabelFrame()
 
 app.startLabelFrame("bigRIGHT",label='preview image',row=0,column=2)
 #rgiht big frame (preview image)
 app.setSticky('n')
-app.addLabel('lbl_pv_path',"No image loaded")
 app.setSticky('')
 app.addImage("preview_image", 'no_image_loaded.gif')
-app.addLabel("rigth big area")
 app.stopLabelFrame()
 
 app.setStretch('column')
@@ -185,41 +216,17 @@ app.startFrame('bottomFrame', 2, 0, 3)
 app.startFrame('bottomleft', 0,0)
 app.setSticky('wne')
 app.addLabelEntry("Custom arguments")
-app.addNamedButton("Just fuck my shit up",'fuckupBtn', editorBtn)
 app.stopFrame()
 
-app.startFrame('bottomcenter',0,1)
-app.setSticky('en')
-app.addLabel('bottom', 'The little part')
-app.stopFrame()
+#app.startFrame('bottomcenter',0,1)
+#app.setSticky('en')
+#app.addLabel('bottom', 'The little part')
+#app.stopFrame()
 
-app.startFrame('bottomright',0,2)
-app.setSticky('en')
-app.addButton("Apply effects",editorBtn)
+#app.startFrame('bottomright',0,2)
+#app.setSticky('en')
+#app.stopFrame()
 app.stopFrame()
-app.stopFrame()
-
-##effects window
-app.startSubWindow('effectsWindow', title="Effects <NONFUNCTIONAL>",transient=True)
-app.setBg("dark gray", override=True,tint=True)
-app.setFg("black", override=True)
-app.setSize(300, 400)
-app.setSticky('new')
-app.setStretch('column')
-app.setTransparency(90)
-app.startScrollPane('effects_scroll')
-app.startLabelFrame('frame_ContentAware',label='Content Aware')
-app.setSticky('new')
-app.setStretch('column')
-app.addNamedCheckBox('Enable','eff_ContentAware', 0,0)
-app.addScale('scale_ContentAware',0,1)
-app.setScaleRange('scale_ContentAware', 1,10,curr=1)
-app.showScaleValue('scale_ContentAware')
-app.setScaleLength('scale_ContentAware',10)
-app.setScaleWidth('scale_ContentAware',10)
-app.stopLabelFrame()
-app.stopScrollPane()
-app.stopSubWindow()
 
 ###prefrences window
 app.startSubWindow('preferences', transient=True)
@@ -231,13 +238,79 @@ app.setSticky('new')
 app.addLabelScale("Preview Scale")
 app.setScaleRange("Preview Scale", 5, 150, curr=100)
 app.showScaleValue("Preview Scale")
-
+#bottom button
 app.setSticky('sew')
 app.startFrame('preferences_bottom')
 app.addButton("Apply",refresh_images)
 app.stopFrame()
 app.stopSubWindow()
 
+
+##effects window
+app.startSubWindow('effectsWindow', title="Effects",transient=True)
+app.setBg("dark gray", override=True,tint=True)
+app.setFg("black", override=True)
+app.setSize(300, 400)
+app.setSticky('nesw')
+app.setStretch('both')
+app.setTransparency(90)
+app.startScrollPane('effects_scroll')
+#content aware
+app.startLabelFrame('frame_ContentAware',label='Content Aware')
+app.addNamedCheckBox('Enable','box_ContentAware', 0,0)
+app.addScale('scale_ContentAware',0,1)
+app.setScaleRange('scale_ContentAware', 0,10,curr=5)
+app.showScaleValue('scale_ContentAware')
+app.setScaleLength('scale_ContentAware',10)
+app.setScaleWidth('scale_ContentAware',10)
+app.showScaleIntervals('scale_ContentAware', 10)
+app.stopLabelFrame()
+#rotation
+app.startLabelFrame('frame_rotation', label='Rotation')
+app.addNamedCheckBox('Enable','box_Rotation', 0,0)
+app.addScale('scale_Rotation',0,1)
+app.setScaleRange('scale_Rotation', 0,360,curr=0)
+app.showScaleValue('scale_Rotation')
+app.setScaleLength('scale_Rotation',10)
+app.setScaleWidth('scale_Rotation',10)
+app.showScaleIntervals('scale_Rotation', 180)
+app.setScaleIncrement('scale_Rotation',45)
+app.stopLabelFrame()
+#flipping
+app.startLabelFrame('frame_flipping', label='Flipping')
+app.addNamedCheckBox('Horizontal','box_flipping_hor')
+app.addNamedCheckBox('Vertical','box_flipping_vert')
+app.stopLabelFrame()
+#implode
+app.startLabelFrame('frame_implode',label='Implode')
+app.addNamedCheckBox('Enable','box_implode',0,0)
+app.addNumericEntry('entry_implode',1,0)
+app.setEntry('entry_implode',0.5)
+app.setEntryMaxLength('entry_implode',5)
+app.stopLabelFrame()
+#explode
+app.startLabelFrame('frame_explode',label='Explode')
+app.addNamedCheckBox('Enable','box_explode',0,0)
+app.addNumericEntry('entry_explode',1,0)
+app.setEntry('entry_explode',0.5)
+app.setEntryMaxLength('entry_explode',5)
+app.stopLabelFrame()
+
+app.stopScrollPane()
+app.setSticky('esw')
+app.setStretch('column')
+app.startFrame('effects_bottom')
+app.addNamedButton("Randomize",'fuckupBtn', editorBtn,0,0)
+app.addButton("Apply effects",editorBtn,0,2)
+app.stopFrame()
+app.stopSubWindow()
+
+app.startSubWindow('secret_sub')
+app.addLabel('lbl_og_path',"No image loaded")
+app.stopSubWindow()
+
 app.showSubWindow('effectsWindow')
+view_res = 600*(app.getScale("Preview Scale")/100)
+log(f'Resolution: {view_res}',n=0)
 
 app.go()
