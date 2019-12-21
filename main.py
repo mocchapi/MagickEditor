@@ -4,6 +4,7 @@ from datetime import datetime
 import subprocess
 import os
 
+global all_filetypes
 global baseRes
 global AppInfo
 AppInfo = """MagickTest
@@ -12,6 +13,7 @@ made by Anne Mocha
 19/12/2019
 This is not even close to complete.
 """
+all_filetypes = [('images', '*.png'), ('images', '*.jpg'),('images','*.gif'),('images','*.bmp'),('images','*.jpeg'),('All filetypes','*')]
 baseRes = 600
 
 app = gui("Magiktest","1500x800")
@@ -22,22 +24,25 @@ app.setFg("black", override=True)
 def log(loginput, n=None, alert=False):
 	loginput = str(loginput).lower()
 	logtime = datetime.now().strftime('%H:%M:%S')
-	if n==None:
-		print(f'[{logtime}] [...] {loginput}')
-	elif n==0:
-		print(f'[{logtime}] [-i-] {loginput}')
-	elif n==1:
-		print(f'[{logtime}] [-✓-]')
-	elif n==2:
+	if n==2:
 		print(f'[{logtime}] [-!-] {loginput}')
 		if alert:
 			app.warningBox('Error',loginput)
+	else:
+		if alert:
+			app.infoBox('Info',loginput)
+		if n==None:
+			print(f'[{logtime}] [...] {loginput}')
+		elif n==0:
+			print(f'[{logtime}] [-i-] {loginput}')
+		elif n==1:
+			print(f'[{logtime}] [-✓-] {loginput}')
 
 
 
 def editorBtn(button):
 	button = button.lower()
-	log(f'editor btn: {button}')
+	log(f'editor btn: {button}',n=0)
 	if button == 'fuckupBtn':
 		randomizeEffects()
 	if button == 'apply effects':
@@ -51,14 +56,23 @@ def tbFunc(button):
 	log(f'toolbar btn: {button}',n=0)
 	if button == 'open':
 		og_path = selectFile()
-		if og_path != '':
+		if og_path != '' and og_path !=():
 			loadOriginal(og_path)
-			loadPreview()
+			app.thread(loadPreview)
+		else:
+			log(f'No file selected',n=0)
 	if button == 'save':
 		log(f'Save box open')
-		export_path = app.saveBox(title='Save')
-		if export_path == '':
+		try:
+			export_path = app.saveBox(title='Save',fileExt='.png',fileTypes=all_filetypes)
+		except BaseException as e:
+			log(f'{e}',n=2)
+		if export_path == '' or export_path==():
 			log(f'Save cancelled',n=0)
+		else:
+			log(f'Save path: {export_path}')
+			app.infoBox('Info','Saving, please wait a moment')
+			app.thread(saveFile,export_path)
 	if button == 'settings':
 		app.showSubWindow("preferences")
 	if button == 'refresh':
@@ -77,12 +91,9 @@ def refresh_images():
 		log('temp files removed',n=0)
 	except BaseException as e:
 		log(e,n=2)
-
 	og_path = app.getLabel("lbl_og_path")
 	if og_path != "No image loaded":
 		loadOriginal(og_path)
-	pv_path = app.getLabel("lbl_pv_path")
-	if pv_path != "No image generated":
 		app.thread(loadPreview)
 
 def collect_args():
@@ -103,7 +114,7 @@ def collect_args():
 		scaledown = f'{round(1/(1+CA_scale/10)*100,2)}%'
 		args = f'{args} -scale {scaleup}x{scaleup} -liquid-rescale {scaledown}x{scaledown}'
 	if app.getCheckBox('box_Rotation'):
-		args = f'{args} -rotate {app.getScale("scale_Rotation")}'
+		args = f'{args} -background \'rgba(0,0,0,0)\' -rotate {app.getScale("scale_Rotation")}'
 	if app.getCheckBox('box_flipping_hor'):
 		args = f'{args} -flop'
 	if app.getCheckBox('box_flipping_vert'):
@@ -152,7 +163,6 @@ def generatePreview():
 		app.reloadImage("preview_image", 'loading.gif')
 		log(f'full command: magick "temp_og.gif" {str(args)} -scale {view_res}x{view_res} "temp_pv.gif"')
 		magick_output = os.system(f'magick "temp_og.gif" {str(args)} -scale {view_res}x{view_res} "temp_pv.gif"')
-#		magick_output = os.system(f'magick "{og_image}" {str(args)} "temp_pv.gif"')
 		if magick_output > 0:
 			raise Exception
 		log('preview generated')
@@ -174,15 +184,25 @@ def loadPreview():
 
 def selectFile():
 	log('file select window')
-	file = app.openBox(title='Select File', fileTypes=[('images', '*.png'), ('images', '*.jpg')])
+	file = app.openBox(title='Select File', fileTypes=all_filetypes)
 	if file != '':
 		log(f'path to file: {file}',n=0)
 	else:
 		log(f'No new file selected',n=0)
 	return file
 
-def saveFile():
-	return None 
+def saveFile(new_path):
+	log(f'Saving as {new_path}')
+	if '.' not in new_path:
+		log(f'No file extenstion, defaulting to png',n=1)
+		new_path = f'{new_path}.png'
+	args = collect_args()
+	og_path = app.getLabel('lbl_og_path')
+	magick_output = os.system(f'magick "{og_path}" {args} "{new_path}"')
+	if magick_output >0:
+		log(f'Magick error, check custom arguments.',n=2,alert=True)
+	else:
+		log(f'Sucessfully exported to {new_path}',n=1,alert=True)
 
 
 def openAbout():
