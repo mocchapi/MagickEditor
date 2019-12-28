@@ -125,7 +125,7 @@ def collect_args():
 		scaledown = f'{round(1/(1+CA_scale/10)*100,2)}%'
 		args = f'{args} -scale {scaleup}x{scaleup} -liquid-rescale {scaledown}x{scaledown}'
 	if app.getCheckBox('box_Rotation'):
-		args = f'{args} -background \'rgba(0,0,0,0)\' -fill none -rotate {app.getScale("scale_Rotation")}'
+		args = f'{args} -background rgba(0,0,0,0) -fill none -rotate {app.getScale("scale_Rotation")}'
 	if app.getCheckBox('box_flipping_hor'):
 		args = f'{args} -flop'
 	if app.getCheckBox('box_flipping_vert'):
@@ -141,8 +141,14 @@ def collect_args():
 			explode_val = explode_val*-1
 		explode_val = explode_val*-1
 		args = f'{args} -implode {explode_val}'
+	if app.getCheckBox('box_tile'):
+		for x in range(app.getScale('scale_Tile')):
+			args = f'{args} -scale 33.33% ( +clone +clone ) +append ( +clone +clone ) -append'
 	log(f'Arguments collected',n=1)
-	log(f'Arguments: {args}',n=0)
+	if args == '':
+		log(f'No arguments',n=0)
+	else:
+		log(f'Arguments:{args}',n=0)
 	return args
 
 def generateOriginal(path_input):
@@ -180,6 +186,7 @@ def generatePreview():
 		return 'temp_pv.gif'
 	except Exception as e:
 		log('Magick error: check custom arguments.',n=2,alert=True)
+		log(e,n=2)
 		return 'image_loading_error.gif'
 
 
@@ -249,14 +256,6 @@ app.setSticky('wne')
 app.addLabelEntry("Custom arguments")
 app.stopFrame()
 
-#app.startFrame('bottomcenter',0,1)
-#app.setSticky('en')
-#app.addLabel('bottom', 'The little part')
-#app.stopFrame()
-
-#app.startFrame('bottomright',0,2)
-#app.setSticky('en')
-#app.stopFrame()
 app.stopFrame()
 
 ###prefrences window
@@ -289,6 +288,7 @@ app.setSticky('nesw')
 app.setStretch('both')
 app.setTransparency(90)
 app.startScrollPane('effects_scroll')
+
 #content aware
 app.startLabelFrame('frame_ContentAware',label='Content Aware')
 app.addNamedCheckBox('Enable','box_ContentAware', 0,0)
@@ -328,6 +328,17 @@ app.addNamedCheckBox('Enable','box_explode',0,0)
 app.addNumericEntry('entry_explode',1,0)
 app.setEntry('entry_explode',0.5)
 app.setEntryMaxLength('entry_explode',5)
+app.stopLabelFrame()
+#tile
+app.startLabelFrame('frame_tile',label='Tile')
+app.addNamedCheckBox('Enable','box_tile',0,0)
+app.addScale('scale_Tile',0,1)
+app.setScaleRange('scale_Tile',0,5,curr=1)
+app.showScaleValue('scale_Tile')
+app.setScaleLength('scale_Tile',10)
+app.setScaleWidth('scale_Tile',10)
+app.setScaleIncrement('scale_Tile',1)
+app.showScaleValue('scale_Tile')
 app.stopLabelFrame()
 
 app.stopScrollPane()
