@@ -38,7 +38,18 @@ def log(loginput, n=None, alert=False):
 		elif n==1:
 			print(f'[{logtime}] [-✓-] {loginput}')
 
+def get_viewres():
+	if app.getCheckBox('box_HDmode'):
+		return 1200
+	else:
+		view_res = round(float(baseRes*(app.getScale("Preview Scale")/100)),2)
+		return view_res
 
+def final_scale():
+	if app.getCheckBox('box_HDmode'):
+		return ''
+	else:
+		return f'-scale {get_viewres()}x{get_viewres()}'
 
 def editorBtn(button):
 	button = button.lower()
@@ -114,7 +125,7 @@ def collect_args():
 		scaledown = f'{round(1/(1+CA_scale/10)*100,2)}%'
 		args = f'{args} -scale {scaleup}x{scaleup} -liquid-rescale {scaledown}x{scaledown}'
 	if app.getCheckBox('box_Rotation'):
-		args = f'{args} -background \'rgba(0,0,0,0)\' -rotate {app.getScale("scale_Rotation")}'
+		args = f'{args} -background \'rgba(0,0,0,0)\' -fill none -rotate {app.getScale("scale_Rotation")}'
 	if app.getCheckBox('box_flipping_hor'):
 		args = f'{args} -flop'
 	if app.getCheckBox('box_flipping_vert'):
@@ -138,7 +149,7 @@ def generateOriginal(path_input):
 	log("generating og image")
 	try:
 		try:
-			os.system(f'magick convert "{path_input}" -scale {view_res}x{view_res} "temp_og.gif"')
+			os.system(f'magick convert "{path_input}" {final_scale()} "temp_og.gif"')
 		except BaseException as e:
 			log(e,n=2)
 		app.setLabel("lbl_og_path",path_input)
@@ -161,8 +172,8 @@ def generatePreview():
 			return 'no_image_loaded.gif'
 		args = collect_args()
 		app.reloadImage("preview_image", 'loading.gif')
-		log(f'full command: magick "temp_og.gif" {str(args)} -scale {view_res}x{view_res} "temp_pv.gif"')
-		magick_output = os.system(f'magick "temp_og.gif" {str(args)} -scale {view_res}x{view_res} "temp_pv.gif"')
+		log(f'full command: magick "temp_og.gif" {str(args)} {final_scale()} "temp_pv.gif"')
+		magick_output = os.system(f'magick "temp_og.gif" {str(args)} {final_scale()} "temp_pv.gif"')
 		if magick_output > 0:
 			raise Exception
 		log('preview generated')
@@ -173,12 +184,12 @@ def generatePreview():
 
 
 def loadOriginal(path_input):
-	app.setImageSize("original_image", view_res,view_res)
+	app.setImageSize("original_image", get_viewres(),get_viewres())
 	app.reloadImage("original_image", generateOriginal(path_input))
 	return None
 
 def loadPreview():
-	app.setImageSize("preview_image", view_res,view_res)
+	app.setImageSize("preview_image", get_viewres(),get_viewres())
 	app.reloadImage("preview_image", generatePreview())
 	return None
 
@@ -255,9 +266,12 @@ app.setBg("dark gray", override=True,tint=True)
 app.setFg("black", override=True)
 app.setSize(300, 400)
 app.setSticky('new')
+app.setStretch('column')
 app.addLabelScale("Preview Scale")
 app.setScaleRange("Preview Scale", 5, 150, curr=100)
 app.showScaleValue("Preview Scale")
+app.addNamedCheckBox('HD mode','box_HDmode')
+app.setStretch('')
 #bottom button
 app.setSticky('sew')
 app.startFrame('preferences_bottom')
@@ -330,7 +344,7 @@ app.addLabel('lbl_og_path',"No image loaded")
 app.stopSubWindow()
 
 app.showSubWindow('effectsWindow')
-view_res = 600*(app.getScale("Preview Scale")/100)
+view_res = baseRes*(app.getScale("Preview Scale")/100)
 log(f'Resolution: {view_res}',n=0)
 
 app.go()
