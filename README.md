@@ -1,4 +1,5 @@
-## MagickEditor
+## MagickEditor (CANARY)
+feature preview branch.
 MagickEditor is a python program providing an UI for imagemagick.
 It has been tested on Manjaro linux and windows 10
 ![Screenshot of MagickEditor containing an image with an implode effect applied](https://puu.sh/EU5Jm.png) 
