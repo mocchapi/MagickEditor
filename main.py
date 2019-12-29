@@ -49,7 +49,7 @@ def final_scale():
 	if app.getCheckBox('box_HDmode'):
 		return ''
 	else:
-		return f'-scale {get_viewres()}x{get_viewres()}'
+		return f'-scale "{get_viewres()}x{get_viewres()}>"'
 
 def editorBtn(button):
 	button = button.lower()
@@ -155,17 +155,26 @@ def collect_args():
 	if app.getCheckBox('box_tile'):
 		for x in range(app.getScale('scale_Tile')):
 			args = f'{args} -scale 33.33% ( +clone +clone ) +append ( +clone +clone ) -append'
+	#roll
 	if app.getCheckBox('box_roll'):
 		horizontal = app.getScale('scale_horizontalroll')
 		vertical = app.getScale('scale_verticalroll')
 		args = f'{args} -roll +{horizontal}%+{vertical}%'
+	#scale
+	if app.getCheckBox('box_scale'):
+		if app.getOptionBox('options_scale') == 'Scale up':
+			args = f'{args} -scale {app.getScale("scale_scale")}%'
+		else:
+			args = f'{args} -scale {(1/(app.getScale("scale_scale")))*10000}%'
 	##no new commands after this##
+	#animations
 	if app.getCheckBox('box_animations'):
 		item = app.getOptionBox('options_animations')
 		if item == 'Spin':
 			args = f'{args} -duplicate 29  -virtual-pixel none -distort SRT "%[fx:360*t/n]" -set delay "%[fx:t==0?240:10]" -loop 0'
 		elif item == 'Angled Scroll':
 			args = f'{args} -duplicate 29  -virtual-pixel tile -distort SRT "0,0 1, 0, %[fx:w*t/n],%[fx:h*t/n]" -set delay 10 -loop 0'
+	#custom arguments
 	try:
 		custom_args = app.getEntry("Custom arguments")
 		if custom_args == '':
@@ -175,6 +184,7 @@ def collect_args():
 		args = f'{args} {custom_args}'
 	except BaseException as e:
 		log(e,n=2)
+	###end of args
 	log(f'Arguments collected',n=1)
 	if args == '':
 		log(f'No arguments',n=0)
@@ -326,12 +336,11 @@ app.setSticky('nesw')
 app.setStretch('both')
 app.setTransparency(90)
 app.startScrollPane('effects_scroll')
-
 #content aware
 app.startLabelFrame('frame_ContentAware',label='Content Aware')
 app.addNamedCheckBox('Enable','box_ContentAware', 0,0)
 app.addScale('scale_ContentAware',0,1)
-app.setScaleRange('scale_ContentAware', 0,10,curr=5)
+app.setScaleRange('scale_ContentAware', 0,1,curr=5)
 app.showScaleValue('scale_ContentAware')
 app.setScaleLength('scale_ContentAware',10)
 app.setScaleWidth('scale_ContentAware',10)
@@ -410,12 +419,23 @@ app.setScaleWidth('scale_verticalroll',10)
 app.setScaleIncrement('scale_verticalroll',10)
 app.showScaleValue('scale_verticalroll')
 app.stopLabelFrame()
-
+#scale 
+app.startLabelFrame('frame_scale', label='Scale')
+app.addNamedCheckBox('Enable','box_scale',0,0)
+app.addScale('scale_scale',0,1)
+app.setScaleRange('scale_scale', 100,1000,curr=100)
+app.showScaleValue('scale_scale')
+app.setScaleLength('scale_scale',10)
+app.setScaleWidth('scale_scale',10)
+app.showScaleIntervals('scale_scale', 900)
+app.setScaleIncrement('scale_scale',50)
+app.addOptionBox('options_scale',['Scale up','Scale down'])
+app.stopLabelFrame()
 
 ##animations
 app.startLabelFrame('frame_animations',label='Animations')
 app.addNamedCheckBox('Enable','box_animations',0,0)
-app.addOptionBox('options_animations',['Spin','Angled Scroll',''])
+app.addOptionBox('options_animations',['Spin','Angled Scroll'])
 app.stopLabelFrame()
 app.stopScrollPane()
 app.setSticky('esw')
