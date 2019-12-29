@@ -110,6 +110,62 @@ def refresh_images():
 def collect_args():
 	log('collecting arguments')
 	args = ''
+	#content aware
+	if app.getCheckBox('box_ContentAware'):
+		CA_scale = app.getScale('scale_ContentAware')
+		scaleup = f'{round(100*(1+CA_scale/10),2)}%'
+		scaledown = f'{round(1/(1+CA_scale/10)*100,2)}%'
+		args = f'{args} -scale {scaleup}x{scaleup} -liquid-rescale {scaledown}x{scaledown}'
+	#rotation
+	if app.getCheckBox('box_Rotation'):
+		args = f'{args} -background rgba(0,0,0,0) -fill none -rotate {app.getScale("scale_Rotation")}'
+	#horizontal flip
+	if app.getCheckBox('box_flipping_hor'):
+		args = f'{args} -flop'
+	#vertical flip
+	if app.getCheckBox('box_flipping_vert'):
+		args = f'{args} -flip'
+	#implode
+	if app.getCheckBox('box_implode'):
+		implode_val = app.getEntry('entry_implode')
+		if implode_val<0:
+			implode_val = implode_val*-1
+		args = f'{args} -implode {implode_val}'
+	#explode
+	if app.getCheckBox('box_explode'):
+		explode_val = app.getEntry('entry_explode')
+		if explode_val<0:
+			explode_val = explode_val*-1
+		explode_val = explode_val*-1
+		args = f'{args} -implode {explode_val}'
+	#swirl
+	if app.getCheckBox('box_swirl'):
+		swirl_val = app.getEntry('entry_swirl')
+		if swirl_val<0:
+			swirl_val = swirl_val*-1
+		args = f'{args} -swirl {swirl_val}'
+	#sworl
+	if app.getCheckBox('box_sworl'):
+		sworl_val = app.getEntry('entry_sworl')
+		if sworl_val<0:
+			sworl_val = sworl_val*-1
+		sworl_val = sworl_val*-1
+		args = f'{args} -swirl {sworl_val}'
+	#tile
+	if app.getCheckBox('box_tile'):
+		for x in range(app.getScale('scale_Tile')):
+			args = f'{args} -scale 33.33% ( +clone +clone ) +append ( +clone +clone ) -append'
+	if app.getCheckBox('box_roll'):
+		horizontal = app.getScale('scale_horizontalroll')
+		vertical = app.getScale('scale_verticalroll')
+		args = f'{args} -roll +{horizontal}%+{vertical}%'
+	##no new commands after this##
+	if app.getCheckBox('box_animations'):
+		item = app.getOptionBox('options_animations')
+		if item == 'Spin':
+			args = f'{args} -duplicate 29  -virtual-pixel none -distort SRT "%[fx:360*t/n]" -set delay "%[fx:t==0?240:10]" -loop 0'
+		elif item == 'Angled Scroll':
+			args = f'{args} -duplicate 29  -virtual-pixel tile -distort SRT "0,0 1, 0, %[fx:w*t/n],%[fx:h*t/n]" -set delay 10 -loop 0'
 	try:
 		custom_args = app.getEntry("Custom arguments")
 		if custom_args == '':
@@ -119,31 +175,6 @@ def collect_args():
 		args = f'{args} {custom_args}'
 	except BaseException as e:
 		log(e,n=2)
-	if app.getCheckBox('box_ContentAware'):
-		CA_scale = app.getScale('scale_ContentAware')
-		scaleup = f'{round(100*(1+CA_scale/10),2)}%'
-		scaledown = f'{round(1/(1+CA_scale/10)*100,2)}%'
-		args = f'{args} -scale {scaleup}x{scaleup} -liquid-rescale {scaledown}x{scaledown}'
-	if app.getCheckBox('box_Rotation'):
-		args = f'{args} -background rgba(0,0,0,0) -fill none -rotate {app.getScale("scale_Rotation")}'
-	if app.getCheckBox('box_flipping_hor'):
-		args = f'{args} -flop'
-	if app.getCheckBox('box_flipping_vert'):
-		args = f'{args} -flip'
-	if app.getCheckBox('box_implode'):
-		implode_val = app.getEntry('entry_implode')
-		if implode_val<0:
-			implode_val = implode_val*-1
-		args = f'{args} -implode {implode_val}'
-	if app.getCheckBox('box_explode'):
-		explode_val = app.getEntry('entry_explode')
-		if explode_val<0:
-			explode_val = explode_val*-1
-		explode_val = explode_val*-1
-		args = f'{args} -implode {explode_val}'
-	if app.getCheckBox('box_tile'):
-		for x in range(app.getScale('scale_Tile')):
-			args = f'{args} -scale 33.33% ( +clone +clone ) +append ( +clone +clone ) -append'
 	log(f'Arguments collected',n=1)
 	if args == '':
 		log(f'No arguments',n=0)
@@ -185,8 +216,12 @@ def generatePreview():
 		log('preview generated')
 		return 'temp_pv.gif'
 	except Exception as e:
-		log('Magick error: check custom arguments.',n=2,alert=True)
-		log(e,n=2)
+		if app.getEntry('Custom arguments') == '':
+			log(f'Magick error, check python log.',n=2,alert=True)
+		else:
+			log(f'Magick error, check custom arguments.',n=2,alert=True)
+		if e != None or e != '':
+			log(e,n=2)
 		return 'image_loading_error.gif'
 
 
@@ -218,7 +253,10 @@ def saveFile(new_path):
 	og_path = app.getLabel('lbl_og_path')
 	magick_output = os.system(f'magick "{og_path}" {args} "{new_path}"')
 	if magick_output >0:
-		log(f'Magick error, check custom arguments.',n=2,alert=True)
+		if app.getEntry('Custom arguments') == '':
+			log(f'Magick error, check python log.',n=2,alert=True)
+		else:
+			log(f'Magick error, check custom arguments.',n=2,alert=True)
 	else:
 		log(f'Sucessfully exported to {new_path}',n=1,alert=True)
 
@@ -329,6 +367,20 @@ app.addNumericEntry('entry_explode',1,0)
 app.setEntry('entry_explode',0.5)
 app.setEntryMaxLength('entry_explode',5)
 app.stopLabelFrame()
+#swirl
+app.startLabelFrame('frame_swirl',label='Swirl')
+app.addNamedCheckBox('Enable','box_swirl',0,0)
+app.addNumericEntry('entry_swirl',1,0)
+app.setEntry('entry_swirl',50)
+app.setEntryMaxLength('entry_swirl',5)
+app.stopLabelFrame()
+#sworl
+app.startLabelFrame('frame_sworl',label='Sworl')
+app.addNamedCheckBox('Enable','box_sworl',0,0)
+app.addNumericEntry('entry_sworl',1,0)
+app.setEntry('entry_sworl',50)
+app.setEntryMaxLength('entry_sworl',5)
+app.stopLabelFrame()
 #tile
 app.startLabelFrame('frame_tile',label='Tile')
 app.addNamedCheckBox('Enable','box_tile',0,0)
@@ -340,7 +392,31 @@ app.setScaleWidth('scale_Tile',10)
 app.setScaleIncrement('scale_Tile',1)
 app.showScaleValue('scale_Tile')
 app.stopLabelFrame()
+##roll
+app.startLabelFrame('frame_roll',label='Roll')
+app.addNamedCheckBox('Enable','box_roll')
+app.addLabelScale('scale_horizontalroll',label='Horizontal Roll')
+app.setScaleRange('scale_horizontalroll',0,100,curr=0)
+app.showScaleValue('scale_horizontalroll')
+app.setScaleLength('scale_horizontalroll',10)
+app.setScaleWidth('scale_horizontalroll',10)
+app.setScaleIncrement('scale_horizontalroll',10)
+app.showScaleValue('scale_horizontalroll')
+app.addLabelScale('scale_verticalroll',label='Vertical Roll    ')
+app.setScaleRange('scale_verticalroll',0,100,curr=0)
+app.showScaleValue('scale_verticalroll')
+app.setScaleLength('scale_verticalroll',10)
+app.setScaleWidth('scale_verticalroll',10)
+app.setScaleIncrement('scale_verticalroll',10)
+app.showScaleValue('scale_verticalroll')
+app.stopLabelFrame()
 
+
+##animations
+app.startLabelFrame('frame_animations',label='Animations')
+app.addNamedCheckBox('Enable','box_animations',0,0)
+app.addOptionBox('options_animations',['Spin','Angled Scroll',''])
+app.stopLabelFrame()
 app.stopScrollPane()
 app.setSticky('esw')
 app.setStretch('column')
