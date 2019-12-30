@@ -3,27 +3,35 @@ import time
 from datetime import datetime
 import subprocess
 import os
-
+from operator import itemgetter
 global all_filetypes
 global baseRes
 global AppInfo
-AppInfo = """MagickTest
-version B0.2
-made by Anne Mocha
-19/12/2019
-This is not even close to complete.
+AppInfo = """MagickEditor
+version B0.3
+made by Anne Mocha (@mocchapi)
+github.com/mocchapi/MagickEditor
+30/12/2019
 """
 all_filetypes = [('images', '*.png'), ('images', '*.jpg'),('images','*.gif'),('images','*.bmp'),('images','*.jpeg'),('All filetypes','*')]
 baseRes = 600
 
-app = gui("Magiktest","1500x800")
+app = gui("Magiktest","500x400")
+app.setSize('1500x800')
 app.setBg("dark gray", override=True,tint=True)
 app.setFg("black", override=True)
+app.setLocation("CENTER")
 
+app.startSubWindow('secret_sub')
+app.addLabel('lbl_og_path',"No image loaded")
+app.addLabel('lbl_prevtime','0')
+app.stopSubWindow()
 
 def log(loginput, n=None, alert=False):
-	loginput = str(loginput).lower()
+	loginput = str(loginput).lower().title()
 	logtime = datetime.now().strftime('%H:%M:%S')
+	if timePassed(180):
+		print(('─'*15))
 	if n==2:
 		print(f'[{logtime}] [-!-] {loginput}')
 		if alert:
@@ -37,6 +45,18 @@ def log(loginput, n=None, alert=False):
 			print(f'[{logtime}] [-i-] {loginput}')
 		elif n==1:
 			print(f'[{logtime}] [-✓-] {loginput}')
+
+def timePassed(amount):
+	prevtime = float(app.getLabel('lbl_prevtime'))
+	currtime = round(time.time(),3)
+	app.setLabel('lbl_prevtime',str(currtime))
+	difftime = currtime-prevtime
+	if prevtime == 0:
+		return False
+	elif difftime >= amount:
+		return True
+	else:
+		return False
 
 def get_viewres():
 	if app.getCheckBox('box_HDmode'):
@@ -52,15 +72,14 @@ def final_scale():
 		return f'-scale "{get_viewres()}x{get_viewres()}>"'
 
 def editorBtn(button):
-	button = button.lower()
 	log(f'editor btn: {button}',n=0)
-	if button == 'fuckupBtn':
-		randomizeEffects()
-	if button == 'apply effects':
+	if button == 'btn_Reorder':
+		AutoOrder()
+	if button == 'btn_ApplyEffects':
 		app.thread(loadPreview)
+	if button == 'box_AutoOrder':
+		SafeReOrder()
 
-def randomizeEffects():
-	return None
 
 def tbFunc(button):
 	button = button.lower()
@@ -109,83 +128,100 @@ def refresh_images():
 
 def collect_args():
 	log('collecting arguments')
-	args = ''
+	args = []
 	#content aware
 	if app.getCheckBox('box_ContentAware'):
+		order = int(app.getSpinBox('order_ContentAware'))
 		CA_scale = app.getScale('scale_ContentAware')
 		scaleup = f'{round(100*(1+CA_scale/10),2)}%'
 		scaledown = f'{round(1/(1+CA_scale/10)*100,2)}%'
-		args = f'{args} -scale {scaleup}x{scaleup} -liquid-rescale {scaledown}x{scaledown}'
+		args = args + [(order,f'-scale {scaleup}x{scaleup} -liquid-rescale {scaledown}x{scaledown}')]
 	#rotation
 	if app.getCheckBox('box_Rotation'):
-		args = f'{args} -background rgba(0,0,0,0) -fill none -rotate {app.getScale("scale_Rotation")}'
+		order = int(app.getSpinBox('order_Rotation'))
+		args = args + [(order,f'-background "rgba(0,0,0,0)" -fill none -rotate {app.getScale("scale_Rotation")}')]
 	#horizontal flip
-	if app.getCheckBox('box_flipping_hor'):
-		args = f'{args} -flop'
+	if app.getCheckBox('box_Flipping_hor'):
+		order = int(app.getSpinBox('order_Flipping'))
+		args = args + [(order,f'-flop')]
 	#vertical flip
-	if app.getCheckBox('box_flipping_vert'):
-		args = f'{args} -flip'
+	if app.getCheckBox('box_Flipping_vert'):
+		order = int(app.getSpinBox('order_Flipping'))
+		args = args + [(order,f'-flip')]
 	#implode
-	if app.getCheckBox('box_implode'):
-		implode_val = app.getEntry('entry_implode')
+	if app.getCheckBox('box_Implode'):
+		order = int(app.getSpinBox('order_Implode'))
+		implode_val = app.getEntry('entry_Implode')
 		if implode_val<0:
 			implode_val = implode_val*-1
-		args = f'{args} -implode {implode_val}'
+		args = args + [(order,f'-implode {implode_val}')]
 	#explode
-	if app.getCheckBox('box_explode'):
-		explode_val = app.getEntry('entry_explode')
+	if app.getCheckBox('box_Explode'):
+		order = int(app.getSpinBox('order_Explode'))
+		explode_val = app.getEntry('entry_Explode')
 		if explode_val<0:
 			explode_val = explode_val*-1
 		explode_val = explode_val*-1
-		args = f'{args} -implode {explode_val}'
+		args = args + [(order,f'-implode {explode_val}')]
 	#swirl
-	if app.getCheckBox('box_swirl'):
-		swirl_val = app.getEntry('entry_swirl')
+	if app.getCheckBox('box_Swirl'):
+		order = int(app.getSpinBox('order_Swirl'))
+		swirl_val = app.getEntry('entry_Swirl')
 		if swirl_val<0:
 			swirl_val = swirl_val*-1
-		args = f'{args} -swirl {swirl_val}'
+		args = args + [(order,f'-swirl {swirl_val}')]
 	#sworl
-	if app.getCheckBox('box_sworl'):
-		sworl_val = app.getEntry('entry_sworl')
+	if app.getCheckBox('box_Sworl'):
+		order = int(app.getSpinBox('order_Sworl'))
+		sworl_val = app.getEntry('entry_Sworl')
 		if sworl_val<0:
 			sworl_val = sworl_val*-1
 		sworl_val = sworl_val*-1
-		args = f'{args} -swirl {sworl_val}'
+		args = args + [(order,f'-swirl {sworl_val}')]
 	#tile
-	if app.getCheckBox('box_tile'):
+	if app.getCheckBox('box_Tile'):
+		order = int(app.getSpinBox('order_Tile'))
+		tileArgs = ''
 		for x in range(app.getScale('scale_Tile')):
-			args = f'{args} -scale 33.33% ( +clone +clone ) +append ( +clone +clone ) -append'
+			tileArgs = f'{tileArgs} -scale 33.33% ( +clone +clone ) +append ( +clone +clone ) -append'
+		args = args + [(order,tileArgs)]
 	#roll
-	if app.getCheckBox('box_roll'):
-		horizontal = app.getScale('scale_horizontalroll')
-		vertical = app.getScale('scale_verticalroll')
-		args = f'{args} -roll +{horizontal}%+{vertical}%'
+	if app.getCheckBox('box_Roll'):
+		order = int(app.getSpinBox('order_Roll'))
+		horizontal = app.getScale('scale_Horizontalroll')
+		vertical = app.getScale('scale_Verticalroll')
+		args = args + [(order,f'-roll +{horizontal}%+{vertical}%')]
 	#scale
-	if app.getCheckBox('box_scale'):
-		if app.getOptionBox('options_scale') == 'Scale up':
-			args = f'{args} -scale {app.getScale("scale_scale")}%'
+	if app.getCheckBox('box_Scale'):
+		order = int(app.getSpinBox('order_Scale'))
+		if app.getOptionBox('options_Scale') == 'Scale up':
+			args = args + [(order,f'-scale {app.getScale("scale_Scale")}%')]
 		else:
-			args = f'{args} -scale {(1/(app.getScale("scale_scale")))*10000}%'
+			args = args + [(order,f'-scale {(1/(app.getScale("scale_Scale")))*10000}%')]
 	##no new commands after this##
 	#animations
-	if app.getCheckBox('box_animations'):
-		item = app.getOptionBox('options_animations')
+	if app.getCheckBox('box_Animations'):
+		order = int(app.getSpinBox('order_Animations'))
+		item = app.getOptionBox('options_Animations')
 		if item == 'Spin':
-			args = f'{args} -duplicate 29  -virtual-pixel none -distort SRT "%[fx:360*t/n]" -set delay "%[fx:t==0?240:10]" -loop 0'
+			args = args + [(order,f'-duplicate 29  -virtual-pixel none -distort SRT "%[fx:360*t/n]" -set delay "%[fx:t==0?240:10]" -loop 0')]
 		elif item == 'Angled Scroll':
-			args = f'{args} -duplicate 29  -virtual-pixel tile -distort SRT "0,0 1, 0, %[fx:w*t/n],%[fx:h*t/n]" -set delay 10 -loop 0'
+			args = args + [(order,f'-duplicate 29  -virtual-pixel tile -distort SRT "0,0 1, 0, %[fx:w*t/n],%[fx:h*t/n]" -set delay 10 -loop 0')]
 	#custom arguments
 	try:
 		custom_args = app.getEntry("Custom arguments")
-		if custom_args == '':
+		if custom_args == 'none' or custom_args == '' or custom_args == None:
 			log('No custom arguments',n=0)
 		else:
 			log(f'custom arguments: {custom_args}',n=0)
-		args = f'{args} {custom_args}'
+			args = args + [(1000,f'{custom_args}')]
 	except BaseException as e:
 		log(e,n=2)
 	###end of args
 	log(f'Arguments collected',n=1)
+	args.sort(key = lambda pair: pair[0])
+	args = map(itemgetter(1), args)
+	args = " ".join(tuple(args))
 	if args == '':
 		log(f'No arguments',n=0)
 	else:
@@ -223,15 +259,15 @@ def generatePreview():
 		magick_output = os.system(f'magick "temp_og.gif" {str(args)} {final_scale()} "temp_pv.gif"')
 		if magick_output > 0:
 			raise Exception
-		log('preview generated')
+		log('preview generated',n=0)
 		return 'temp_pv.gif'
 	except Exception as e:
+		if e != None or e != '':
+			log(e,n=2)
 		if app.getEntry('Custom arguments') == '':
 			log(f'Magick error, check python log.',n=2,alert=True)
 		else:
 			log(f'Magick error, check custom arguments.',n=2,alert=True)
-		if e != None or e != '':
-			log(e,n=2)
 		return 'image_loading_error.gif'
 
 
@@ -269,6 +305,82 @@ def saveFile(new_path):
 			log(f'Magick error, check custom arguments.',n=2,alert=True)
 	else:
 		log(f'Sucessfully exported to {new_path}',n=1,alert=True)
+
+def AppAddScale(name,start,end,y=0,x=1,interval=None,current=None,increment=None,label=None):
+	if label != None:
+		app.addLabel(f'scalelbl_{name}',label,y,x)
+		x=x+1
+	app.addScale(f'scale_{name}',y,x)
+	if current==None:
+		current = start
+	app.setScaleRange(f'scale_{name}', start,end,curr=current)
+	app.showScaleValue(f'scale_{name}')
+	app.setScaleLength(f'scale_{name}',10)
+	app.setScaleWidth(f'scale_{name}',10)
+	if interval == None:
+		interval = end-start
+	app.showScaleIntervals(f'scale_{name}', interval)
+	if increment != None:
+		app.setScaleIncrement(f'scale_{name}',increment)
+
+def AppStartEffect(name,label=None,y=5,x=0):
+	if label == None:
+		label = name
+	app.startLabelFrame(f'frame_{name}',label=label)
+	app.addNamedCheckBox('Enable',f'box_{name}', 0,0)
+	app.addLabel(f'lbl_order{name}','Order:',y+1,x)
+	app.addSpinBoxRange(f'order_{name}',0,999,y+1,x+1,reverse=True)
+
+def SafeReOrder(verbal=False):
+	log('Checking if safe to re-order')
+	boxes = app.getAllSpinBoxes()
+	autoOrdered = app.getCheckBox('box_AutoOrder')
+	if autoOrdered:
+		autoOrdered = False
+	else:
+		autoOrdered = True
+	order = 0
+	mismatch = False
+	for name,value in boxes.items():
+		if autoOrdered:
+			if verbal:
+				print(f'{value}=={order}?')
+			if value != str(order):
+				mismatch = True
+				if verbal:
+					print('mismatch')
+		else:
+			if verbal:
+				print(f'{value}==0?')
+			if value != '0':
+				mismatch = True
+				if verbal:
+					print('mismatch')
+		order+=1
+	log('Check completed',n=1)
+	if mismatch == False:
+		log('Safe to re-order',n=0)
+		AutoOrder()
+	else:
+		log('Unsafe to re-order, no action taken.',n=0)
+
+
+def AutoOrder():
+	log('Ordering effects')
+	boxes = app.getAllSpinBoxes()
+	enabled = app.getCheckBox('box_AutoOrder')
+	order = 0
+	for name in boxes:
+		if enabled:
+			app.setSpinBox(name,order)
+			order+=1
+		else:
+			app.setSpinBox(name,0)
+	if enabled:
+		log(f'Ordered 0-{order-1}',n=1)
+	else:
+		log('All orders set to 0',n=1)
+
 
 
 def openAbout():
@@ -318,6 +430,9 @@ app.addLabelScale("Preview Scale")
 app.setScaleRange("Preview Scale", 5, 150, curr=100)
 app.showScaleValue("Preview Scale")
 app.addNamedCheckBox('HD mode','box_HDmode')
+app.addNamedCheckBox('Automatic effect ordering','box_AutoOrder')
+app.setCheckBoxChangeFunction('box_AutoOrder',editorBtn)
+app.setCheckBox('box_AutoOrder', ticked=True,callFunction=False)
 app.setStretch('')
 #bottom button
 app.setSticky('sew')
@@ -326,132 +441,82 @@ app.addButton("Apply",refresh_images)
 app.stopFrame()
 app.stopSubWindow()
 
-
 ##effects window
 app.startSubWindow('effectsWindow', title="Effects",transient=True)
 app.setBg("dark gray", override=True,tint=True)
 app.setFg("black", override=True)
-app.setSize(300, 400)
+app.setSize(330, 400)
 app.setSticky('nesw')
 app.setStretch('both')
 app.setTransparency(90)
-app.startScrollPane('effects_scroll')
+app.startScrollPane('effects_scroll',disabled='horizontal')
 #content aware
-app.startLabelFrame('frame_ContentAware',label='Content Aware')
-app.addNamedCheckBox('Enable','box_ContentAware', 0,0)
-app.addScale('scale_ContentAware',0,1)
-app.setScaleRange('scale_ContentAware', 0,10,curr=5)
-app.showScaleValue('scale_ContentAware')
-app.setScaleLength('scale_ContentAware',10)
-app.setScaleWidth('scale_ContentAware',10)
-app.showScaleIntervals('scale_ContentAware', 10)
+AppStartEffect('ContentAware','Content Aware')
+AppAddScale('ContentAware',0,10,current=5)
 app.stopLabelFrame()
 #rotation
-app.startLabelFrame('frame_rotation', label='Rotation')
-app.addNamedCheckBox('Enable','box_Rotation', 0,0)
-app.addScale('scale_Rotation',0,1)
-app.setScaleRange('scale_Rotation', 0,360,curr=0)
-app.showScaleValue('scale_Rotation')
-app.setScaleLength('scale_Rotation',10)
-app.setScaleWidth('scale_Rotation',10)
-app.showScaleIntervals('scale_Rotation', 180)
-app.setScaleIncrement('scale_Rotation',45)
+AppStartEffect('Rotation')
+AppAddScale('Rotation',0,360,increment=45)
 app.stopLabelFrame()
 #flipping
-app.startLabelFrame('frame_flipping', label='Flipping')
-app.addNamedCheckBox('Horizontal','box_flipping_hor')
-app.addNamedCheckBox('Vertical','box_flipping_vert')
+AppStartEffect('Flipping')
+app.addNamedCheckBox('Horizontal','box_Flipping_hor',0,1)
+app.addNamedCheckBox('Vertical','box_Flipping_vert',1,1)
 app.stopLabelFrame()
 #implode
-app.startLabelFrame('frame_implode',label='Implode')
-app.addNamedCheckBox('Enable','box_implode',0,0)
-app.addNumericEntry('entry_implode',1,0)
-app.setEntry('entry_implode',0.5)
-app.setEntryMaxLength('entry_implode',5)
+AppStartEffect('Implode')
+app.addNumericEntry('entry_Implode',0,1)
+app.setEntry('entry_Implode',0.5)
+app.setEntryMaxLength('entry_Implode',5)
 app.stopLabelFrame()
 #explode
-app.startLabelFrame('frame_explode',label='Explode')
-app.addNamedCheckBox('Enable','box_explode',0,0)
-app.addNumericEntry('entry_explode',1,0)
-app.setEntry('entry_explode',0.5)
-app.setEntryMaxLength('entry_explode',5)
+AppStartEffect('Explode')
+app.addNumericEntry('entry_Explode',0,1)
+app.setEntry('entry_Explode',0.5)
+app.setEntryMaxLength('entry_Explode',5)
 app.stopLabelFrame()
 #swirl
-app.startLabelFrame('frame_swirl',label='Swirl')
-app.addNamedCheckBox('Enable','box_swirl',0,0)
-app.addNumericEntry('entry_swirl',1,0)
-app.setEntry('entry_swirl',50)
-app.setEntryMaxLength('entry_swirl',5)
+AppStartEffect('Swirl')
+app.addNumericEntry('entry_Swirl',0,1)
+app.setEntry('entry_Swirl',50)
+app.setEntryMaxLength('entry_Swirl',5)
 app.stopLabelFrame()
 #sworl
-app.startLabelFrame('frame_sworl',label='Sworl')
-app.addNamedCheckBox('Enable','box_sworl',0,0)
-app.addNumericEntry('entry_sworl',1,0)
-app.setEntry('entry_sworl',50)
-app.setEntryMaxLength('entry_sworl',5)
+AppStartEffect('Sworl')
+app.addNumericEntry('entry_Sworl',0,1)
+app.setEntry('entry_Sworl',50)
+app.setEntryMaxLength('entry_Sworl',5)
 app.stopLabelFrame()
 #tile
-app.startLabelFrame('frame_tile',label='Tile')
-app.addNamedCheckBox('Enable','box_tile',0,0)
-app.addScale('scale_Tile',0,1)
-app.setScaleRange('scale_Tile',0,5,curr=1)
-app.showScaleValue('scale_Tile')
-app.setScaleLength('scale_Tile',10)
-app.setScaleWidth('scale_Tile',10)
-app.setScaleIncrement('scale_Tile',1)
-app.showScaleValue('scale_Tile')
+AppStartEffect('Tile')
+AppAddScale('Tile',0,5,current=1)
 app.stopLabelFrame()
 ##roll
-app.startLabelFrame('frame_roll',label='Roll')
-app.addNamedCheckBox('Enable','box_roll')
-app.addLabelScale('scale_horizontalroll',label='Horizontal Roll')
-app.setScaleRange('scale_horizontalroll',0,100,curr=0)
-app.showScaleValue('scale_horizontalroll')
-app.setScaleLength('scale_horizontalroll',10)
-app.setScaleWidth('scale_horizontalroll',10)
-app.setScaleIncrement('scale_horizontalroll',10)
-app.showScaleValue('scale_horizontalroll')
-app.addLabelScale('scale_verticalroll',label='Vertical Roll    ')
-app.setScaleRange('scale_verticalroll',0,100,curr=0)
-app.showScaleValue('scale_verticalroll')
-app.setScaleLength('scale_verticalroll',10)
-app.setScaleWidth('scale_verticalroll',10)
-app.setScaleIncrement('scale_verticalroll',10)
-app.showScaleValue('scale_verticalroll')
+AppStartEffect('Roll')
+AppAddScale('Horizontalroll',0,100,increment=10,label='Horizontal Roll',y=1,x=0)
+AppAddScale('Verticalroll',0,100,increment=10,label='Vertical Roll',y=2,x=0)
 app.stopLabelFrame()
 #scale 
-app.startLabelFrame('frame_scale', label='Scale')
-app.addNamedCheckBox('Enable','box_scale',0,0)
-app.addScale('scale_scale',0,1)
-app.setScaleRange('scale_scale', 100,1000,curr=100)
-app.showScaleValue('scale_scale')
-app.setScaleLength('scale_scale',10)
-app.setScaleWidth('scale_scale',10)
-app.showScaleIntervals('scale_scale', 900)
-app.setScaleIncrement('scale_scale',50)
-app.addOptionBox('options_scale',['Scale up','Scale down'])
+AppStartEffect('Scale')
+AppAddScale('Scale',100,1000,interval=900,increment=50)
+app.addOptionBox('options_Scale',['Scale up','Scale down'],1,1)
 app.stopLabelFrame()
-
 ##animations
-app.startLabelFrame('frame_animations',label='Animations')
-app.addNamedCheckBox('Enable','box_animations',0,0)
-app.addOptionBox('options_animations',['Spin','Angled Scroll'])
+AppStartEffect('Animations')
+app.addOptionBox('options_Animations',['Spin','Angled Scroll'],1,1)
 app.stopLabelFrame()
+#final
 app.stopScrollPane()
 app.setSticky('esw')
 app.setStretch('column')
 app.startFrame('effects_bottom')
-app.addNamedButton("Randomize",'fuckupBtn', editorBtn,0,0)
-app.addButton("Apply effects",editorBtn,0,2)
+app.addNamedButton("Re-order",'btn_Reorder', editorBtn,0,0)
+app.addNamedButton("Apply effects",'btn_ApplyEffects',editorBtn,0,2)
 app.stopFrame()
-app.stopSubWindow()
-
-app.startSubWindow('secret_sub')
-app.addLabel('lbl_og_path',"No image loaded")
 app.stopSubWindow()
 
 app.showSubWindow('effectsWindow')
 view_res = baseRes*(app.getScale("Preview Scale")/100)
 log(f'Resolution: {view_res}',n=0)
-
+AutoOrder()
 app.go()
