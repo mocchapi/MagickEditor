@@ -8,7 +8,7 @@ global all_filetypes
 global baseRes
 global AppInfo
 AppInfo = """MagickEditor
-version B0.3
+version 1.0
 made by Anne Mocha (@mocchapi)
 github.com/mocchapi/MagickEditor
 30/12/2019
@@ -30,7 +30,7 @@ app.stopSubWindow()
 def log(loginput, n=None, alert=False):
 	loginput = str(loginput).lower().title()
 	logtime = datetime.now().strftime('%H:%M:%S')
-	if timePassed(180):
+	if timePassed(600):
 		print(('─'*15))
 	if n==2:
 		print(f'[{logtime}] [-!-] {loginput}')
@@ -163,6 +163,10 @@ def collect_args():
 			explode_val = explode_val*-1
 		explode_val = explode_val*-1
 		args = args + [(order,f'-implode {explode_val}')]
+	#invert
+	if app.getCheckBox('box_Invert'):
+		order = int(app.getSpinBox('order_Invert'))
+		args = args + [(order,'-channel RGB -negate')]
 	#swirl
 	if app.getCheckBox('box_Swirl'):
 		order = int(app.getSpinBox('order_Swirl'))
@@ -255,7 +259,7 @@ def generatePreview():
 			return 'no_image_loaded.gif'
 		args = collect_args()
 		app.reloadImage("preview_image", 'loading.gif')
-		log(f'full command: magick "temp_og.gif" {str(args)} {final_scale()} "temp_pv.gif"')
+		log(f'full command: magick "temp_og.gif" {str(args)} {final_scale()} "temp_pv.gif"',n=0)
 		magick_output = os.system(f'magick "temp_og.gif" {str(args)} {final_scale()} "temp_pv.gif"')
 		if magick_output > 0:
 			raise Exception
@@ -387,7 +391,7 @@ def openAbout():
 	app.infoBox('About',AppInfo)
 
 tools = ["OPEN", "SAVE", "REFRESH", "WIZARD",
-        "SETTINGS", "PRINT", "ABOUT"]
+        "SETTINGS", "ABOUT"]
 
 app.addToolbar(tools, tbFunc, findIcon=True)
 
@@ -475,6 +479,8 @@ app.addNumericEntry('entry_Explode',0,1)
 app.setEntry('entry_Explode',0.5)
 app.setEntryMaxLength('entry_Explode',5)
 app.stopLabelFrame()
+AppStartEffect('Invert')
+app.stopLabelFrame()
 #swirl
 AppStartEffect('Swirl')
 app.addNumericEntry('entry_Swirl',0,1)
@@ -496,7 +502,7 @@ AppStartEffect('Roll')
 AppAddScale('Horizontalroll',0,100,increment=10,label='Horizontal Roll',y=1,x=0)
 AppAddScale('Verticalroll',0,100,increment=10,label='Vertical Roll',y=2,x=0)
 app.stopLabelFrame()
-#scale 
+#scale
 AppStartEffect('Scale')
 AppAddScale('Scale',100,1000,interval=900,increment=50)
 app.addOptionBox('options_Scale',['Scale up','Scale down'],1,1)
