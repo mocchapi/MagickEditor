@@ -2,16 +2,16 @@
 MagickEditor is a python program providing an UI for imagemagick.
 It has been tested on Manjaro linux and windows 10
 ![Gif of the MagickEditor program displaying an animated goose](https://puu.sh/EUwLR.gif) 
-**Installation:**
+**Universal Installation:**
  1. [Install python 3](https://www.python.org/downloads/)
  2. [Pip install AppJar](https://pypi.org/project/appJar/)
  3. [Install ImageMagick](https://imagemagick.org/script/download.php)
+ 4. Clone the repository and run main.py
  ___
- Most of the base functionality is complete, I'm currently just adding a bunch of preset effects (like most recently the Tile effect)
+ **Windows Installation:**
+ 1. Download the winInstaller.py which can be found at each release
+ 2. Move winInstaller.py to the folder you want to install to
+ 3. Run winInstaller.py
  ___
- Several functions are incomplete:
- 
- - The randomize button doesn't  do anything
- - The print button doesn't do anything
 
  
