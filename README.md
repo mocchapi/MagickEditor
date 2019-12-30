@@ -1,7 +1,7 @@
 ## MagickEditor
 MagickEditor is a python program providing an UI for imagemagick.
 It has been tested on Manjaro linux and windows 10
-![Screenshot of MagickEditor containing an image with an implode effect applied](https://puu.sh/EU5Jm.png) 
+![Gif of the MagickEditor program displaying an animated goose](https://puu.sh/EUwLR.gif) 
 **Installation:**
  1. [Install python 3](https://www.python.org/downloads/)
  2. [Pip install AppJar](https://pypi.org/project/appJar/)
