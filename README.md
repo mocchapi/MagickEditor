@@ -9,9 +9,10 @@ It has been tested on Manjaro linux and windows 10
  4. Clone the repository and run main.py
  ___
  **Windows Installation:**
- 1. Download the winInstaller.py which can be found at each release
- 2. Move winInstaller.py to the folder you want to install to
- 3. Run winInstaller.py
+ 1. [Install python 3](https://www.python.org/downloads/)
+ 2. Download the winInstaller.py which can be found at each release
+ 3. Move winInstaller.py to the folder you want to install to
+ 4. Run winInstaller.py
  ___
 
  
