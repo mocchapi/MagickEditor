@@ -101,8 +101,8 @@ def tbFunc(button):
 			log(f'Save cancelled',n=0)
 		else:
 			log(f'Save path: {export_path}')
-			app.infoBox('Info','Saving, please wait a moment')
 			app.thread(saveFile,export_path)
+			app.infoBox('Info','Saving, please wait a moment')
 	if button == 'settings':
 		app.showSubWindow("preferences")
 	if button == 'refresh':
@@ -202,6 +202,28 @@ def collect_args():
 			args = args + [(order,f'-scale {app.getScale("scale_Scale")}%')]
 		else:
 			args = args + [(order,f'-scale {(1/(app.getScale("scale_Scale")))*10000}%')]
+
+	#spread
+	if app.getCheckBox('box_Spread'):
+		order = int(app.getSpinBox('order_Spread'))
+		spreadVal = app.getScale('scale_Spread')
+		args = args + [(order,f'-spread {spreadVal}')]
+	#fuzzy
+	if app.getCheckBox('box_Fuzzy'):
+		order = int(app.getSpinBox('order_Fuzzy'))
+		Fuz_scale = app.getScale('scale_Fuzzy')
+		if Fuz_scale >0:
+			scaleup = f'{round((100*(Fuz_scale*2)),2)}%'
+			scaledown = f'{round((1/(Fuz_scale*2))*100,2)}%'
+			args = args + [(order,f'-resize {scaledown} -resize {scaleup}')]
+	#pixelate
+	if app.getCheckBox('box_Pixelate'):
+		order = int(app.getSpinBox('order_Pixelate'))
+		Pix_scale = app.getScale('scale_Pixelate')
+		if Pix_scale >0:
+			scaleup = f'{round((100*(Pix_scale*2)),2)}%'
+			scaledown = f'{round((1/(Pix_scale*2))*100,2)}%'
+			args = args + [(order,f'-scale {scaledown} -scale {scaleup}')]
 	##no new commands after this##
 	#animations
 	if app.getCheckBox('box_Animations'):
@@ -506,6 +528,18 @@ app.stopLabelFrame()
 AppStartEffect('Scale')
 AppAddScale('Scale',100,1000,interval=900,increment=50)
 app.addOptionBox('options_Scale',['Scale up','Scale down'],1,1)
+app.stopLabelFrame()
+#Spread
+AppStartEffect('Spread')
+AppAddScale('Spread',0,30,increment=1)
+app.stopLabelFrame()
+##fuzzy
+AppStartEffect('Fuzzy')
+AppAddScale('Fuzzy',0,10,increment=1)
+app.stopLabelFrame()
+##Pixelate
+AppStartEffect('Pixelate')
+AppAddScale('Pixelate',0,10,increment=1)
 app.stopLabelFrame()
 ##animations
 AppStartEffect('Animations')
