@@ -4,17 +4,16 @@ from datetime import datetime
 import subprocess
 import os
 from operator import itemgetter
-global all_filetypes
-global baseRes
-global AppInfo
+import configparser
+import pluginHandler
 AppInfo = """MagickEditor
-version 1.0
+version 1.2.0-Canary-08-01-2020
 made by Anne Mocha (@mocchapi)
 github.com/mocchapi/MagickEditor
-30/12/2019
 """
 all_filetypes = [('images', '*.png'), ('images', '*.jpg'),('images','*.gif'),('images','*.bmp'),('images','*.jpeg'),('All filetypes','*')]
 baseRes = 600
+config= configparser.ConfigParser()
 
 app = gui("Magiktest","500x400")
 app.setSize('1500x800')
@@ -28,10 +27,10 @@ app.addLabel('lbl_prevtime','0')
 app.stopSubWindow()
 
 def log(loginput, n=None, alert=False):
-	loginput = str(loginput).lower().title()
+	loginput = str(loginput)
 	logtime = datetime.now().strftime('%H:%M:%S')
 	if timePassed(600):
-		print(('─'*15))
+		print(('─'*30))
 	if n==2:
 		print(f'[{logtime}] [-!-] {loginput}')
 		if alert:
@@ -45,6 +44,19 @@ def log(loginput, n=None, alert=False):
 			print(f'[{logtime}] [-i-] {loginput}')
 		elif n==1:
 			print(f'[{logtime}] [-✓-] {loginput}')
+
+def collectPlugins(folderName='Plugins'):
+	log('Collecting plugins...')
+	folder = os.listdir(folderName)
+	config = configparser.ConfigParser()
+	plugins = []
+	for file in folder:
+		if file.lower().endswith('.ames'):
+			plugins = plugins + config.read(f'{folderName}\{file}')
+	log('Plugins collected',n=1)
+	log(f'Plugin list:{plugins}',n=0)
+	return plugins
+
 
 def timePassed(amount):
 	prevtime = float(app.getLabel('lbl_prevtime'))
@@ -101,8 +113,8 @@ def tbFunc(button):
 			log(f'Save cancelled',n=0)
 		else:
 			log(f'Save path: {export_path}')
-			app.infoBox('Info','Saving, please wait a moment')
 			app.thread(saveFile,export_path)
+			app.infoBox('Info','Saving, please wait a moment')
 	if button == 'settings':
 		app.showSubWindow("preferences")
 	if button == 'refresh':
@@ -129,6 +141,21 @@ def refresh_images():
 def collect_args():
 	log('collecting arguments')
 	args = []
+	##Plugins
+	for plugin in plugins:
+		log(f'Loading plugin effect for {plugin}')
+		pluginFile=open(plugin)
+		config.read_file(pluginFile)
+		order = int(app.getSpinBox(f'order_{config["info"]["name"]}'))
+		if app.getCheckBox(f'box_{config["info"]["name"]}'):
+			output=config['output']['output']
+			outputVar=output
+			for section in config.sections():
+				if section.startswith('input_scale_'):
+					outputVar = outputVar.replace(f'<{section}>',str(app.getScale(section[6:])))
+			args = args + [(order,outputVar)]
+
+
 	#content aware
 	if app.getCheckBox('box_ContentAware'):
 		order = int(app.getSpinBox('order_ContentAware'))
@@ -202,6 +229,28 @@ def collect_args():
 			args = args + [(order,f'-scale {app.getScale("scale_Scale")}%')]
 		else:
 			args = args + [(order,f'-scale {(1/(app.getScale("scale_Scale")))*10000}%')]
+
+	#spread
+	if app.getCheckBox('box_Spread'):
+		order = int(app.getSpinBox('order_Spread'))
+		spreadVal = app.getScale('scale_Spread')
+		args = args + [(order,f'-spread {spreadVal}')]
+	#fuzzy
+	if app.getCheckBox('box_Fuzzy'):
+		order = int(app.getSpinBox('order_Fuzzy'))
+		Fuz_scale = app.getScale('scale_Fuzzy')
+		if Fuz_scale >0:
+			scaleup = f'{round((100*(Fuz_scale*2)),2)}%'
+			scaledown = f'{round((1/(Fuz_scale*2))*100,2)}%'
+			args = args + [(order,f'-resize {scaledown} -resize {scaleup}')]
+	#pixelate
+	if app.getCheckBox('box_Pixelate'):
+		order = int(app.getSpinBox('order_Pixelate'))
+		Pix_scale = app.getScale('scale_Pixelate')
+		if Pix_scale >0:
+			scaleup = f'{round((100*(Pix_scale*2)),2)}%'
+			scaledown = f'{round((1/(Pix_scale*2))*100,2)}%'
+			args = args + [(order,f'-scale {scaledown} -scale {scaleup}')]
 	##no new commands after this##
 	#animations
 	if app.getCheckBox('box_Animations'):
@@ -310,30 +359,47 @@ def saveFile(new_path):
 	else:
 		log(f'Sucessfully exported to {new_path}',n=1,alert=True)
 
-def AppAddScale(name,start,end,y=0,x=1,interval=None,current=None,increment=None,label=None):
+
+scaleList = ['start','end','x','interval','current','increment','label']
+def AppAddScale(name,start,end,y=None,x=1,interval=None,current=None,increment=None,label=None,single=True):
 	if label != None:
 		app.addLabel(f'scalelbl_{name}',label,y,x)
 		x=x+1
-	app.addScale(f'scale_{name}',y,x)
-	if current==None:
-		current = start
-	app.setScaleRange(f'scale_{name}', start,end,curr=current)
-	app.showScaleValue(f'scale_{name}')
-	app.setScaleLength(f'scale_{name}',10)
-	app.setScaleWidth(f'scale_{name}',10)
-	if interval == None:
-		interval = end-start
-	app.showScaleIntervals(f'scale_{name}', interval)
-	if increment != None:
-		app.setScaleIncrement(f'scale_{name}',increment)
+	if y==None:
+		if single==True:
+			y=0
+		else:
+			row=app.getRow()
+			if row==1:
+				row=row+1
+			y=row
+	try:
+		app.addScale(f'scale_{name}',y,x)
+		if current==None:
+			current = start
+		app.setScaleRange(f'scale_{name}', start,end,curr=current)
+		app.showScaleValue(f'scale_{name}')
+		app.setScaleLength(f'scale_{name}',10)
+		app.setScaleWidth(f'scale_{name}',10)
+		if interval == None:
+			interval = end-start
+		app.showScaleIntervals(f'scale_{name}', interval)
+		if increment != None:
+			app.setScaleIncrement(f'scale_{name}',increment)
+	except BaseException as e:
+		log(e,n=2)
 
-def AppStartEffect(name,label=None,y=5,x=0):
+def AppStartEffect(name,label=None):
 	if label == None:
 		label = name
 	app.startLabelFrame(f'frame_{name}',label=label)
 	app.addNamedCheckBox('Enable',f'box_{name}', 0,0)
-	app.addLabel(f'lbl_order{name}','Order:',y+1,x)
-	app.addSpinBoxRange(f'order_{name}',0,999,y+1,x+1,reverse=True)
+
+def AppStopEffect(name,x=0):
+	y=app.getRow()+10
+	app.addLabel(f'lbl_order{name}','Order:',y,x)
+	app.addSpinBoxRange(f'order_{name}',0,999,y,x+1,reverse=True)
+	app.stopLabelFrame()
 
 def SafeReOrder(verbal=False):
 	log('Checking if safe to re-order')
@@ -386,9 +452,9 @@ def AutoOrder():
 		log('All orders set to 0',n=1)
 
 
-
 def openAbout():
 	app.infoBox('About',AppInfo)
+
 
 tools = ["OPEN", "SAVE", "REFRESH", "WIZARD",
         "SETTINGS", "ABOUT"]
@@ -454,63 +520,114 @@ app.setSticky('nesw')
 app.setStretch('both')
 app.setTransparency(90)
 app.startScrollPane('effects_scroll',disabled='horizontal')
+
+##plugins babey!!
+plugins = collectPlugins()
+usedSectionNames = []
+for plugin in plugins:
+	log(f'Loading plugin UI for {plugin}')
+	modules=0
+	pluginFile=open(plugin)
+	config.read_file(pluginFile)
+	pluginName = config['info']['name']
+	AppStartEffect(pluginName)
+	for section in config.sections():
+		if section.startswith('input_'):
+			if section[6:].startswith('scale_') and section not in usedSectionNames:
+				scale=config[section]
+				try:
+					current=scale['current']
+				except:
+					current=None
+				try:
+					interval=scale['interval']
+				except:
+					interval=None
+				try:
+					increment=scale['increment']
+				except:
+					increment=None
+				if modules>0:
+					single=False
+				else:
+					single=True
+				AppAddScale(section[12:],int(scale['start']),int(scale['end']),current=current,interval=interval,increment=increment,single=single)
+				usedSectionNames.append(section)
+				modules=modules+1
+	pluginFile.close()
+	log('Loaded.',n=0)
+	AppStopEffect(pluginName)
+
 #content aware
 AppStartEffect('ContentAware','Content Aware')
 AppAddScale('ContentAware',0,10,current=5)
-app.stopLabelFrame()
+AppStopEffect('ContentAware')
 #rotation
 AppStartEffect('Rotation')
 AppAddScale('Rotation',0,360,increment=45)
-app.stopLabelFrame()
+AppStopEffect('Rotation')
 #flipping
 AppStartEffect('Flipping')
 app.addNamedCheckBox('Horizontal','box_Flipping_hor',0,1)
 app.addNamedCheckBox('Vertical','box_Flipping_vert',1,1)
-app.stopLabelFrame()
+AppStopEffect('Flipping')
 #implode
 AppStartEffect('Implode')
 app.addNumericEntry('entry_Implode',0,1)
 app.setEntry('entry_Implode',0.5)
 app.setEntryMaxLength('entry_Implode',5)
-app.stopLabelFrame()
+AppStopEffect('Implode')
 #explode
 AppStartEffect('Explode')
 app.addNumericEntry('entry_Explode',0,1)
 app.setEntry('entry_Explode',0.5)
 app.setEntryMaxLength('entry_Explode',5)
-app.stopLabelFrame()
+AppStopEffect('Explode')
+#invert
 AppStartEffect('Invert')
-app.stopLabelFrame()
+AppStopEffect('Invert')
 #swirl
 AppStartEffect('Swirl')
 app.addNumericEntry('entry_Swirl',0,1)
 app.setEntry('entry_Swirl',50)
 app.setEntryMaxLength('entry_Swirl',5)
-app.stopLabelFrame()
+AppStopEffect('Swirl')
 #sworl
 AppStartEffect('Sworl')
 app.addNumericEntry('entry_Sworl',0,1)
 app.setEntry('entry_Sworl',50)
 app.setEntryMaxLength('entry_Sworl',5)
-app.stopLabelFrame()
+AppStopEffect('Sworl')
 #tile
 AppStartEffect('Tile')
 AppAddScale('Tile',0,5,current=1)
-app.stopLabelFrame()
+AppStopEffect('Tile')
 ##roll
 AppStartEffect('Roll')
 AppAddScale('Horizontalroll',0,100,increment=10,label='Horizontal Roll',y=1,x=0)
 AppAddScale('Verticalroll',0,100,increment=10,label='Vertical Roll',y=2,x=0)
-app.stopLabelFrame()
+AppStopEffect('Roll')
 #scale
 AppStartEffect('Scale')
 AppAddScale('Scale',100,1000,interval=900,increment=50)
 app.addOptionBox('options_Scale',['Scale up','Scale down'],1,1)
-app.stopLabelFrame()
+AppStopEffect('Scale')
+#Spread
+AppStartEffect('Spread')
+AppAddScale('Spread',0,30,increment=1)
+AppStopEffect('Spread')
+##fuzzy
+AppStartEffect('Fuzzy')
+AppAddScale('Fuzzy',0,10,increment=1)
+AppStopEffect('Fuzzy')
+##Pixelate
+AppStartEffect('Pixelate')
+AppAddScale('Pixelate',0,10,increment=1)
+AppStopEffect('Pixelate')
 ##animations
 AppStartEffect('Animations')
 app.addOptionBox('options_Animations',['Spin','Angled Scroll'],1,1)
-app.stopLabelFrame()
+AppStopEffect('Animations')
 #final
 app.stopScrollPane()
 app.setSticky('esw')
