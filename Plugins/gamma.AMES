@@ -1,14 +1,14 @@
 [info]
 name = Gamma
 author = anne
-version = 1.0.0
+version = 1.2.0
 
 
-[input_scale_Gamma]
-start=-100
+[input:scale:Gamma]
+start=0
 end=100
 current=0
 
 
 [output]
-output=-gamma <input_scale_Gamma>
+output=-gamma <input:scale:Gamma>
