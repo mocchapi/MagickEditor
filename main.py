@@ -3,11 +3,11 @@ import time
 from datetime import datetime
 import subprocess
 import os
+import sys
 from operator import itemgetter
 import configparser
-import pluginHandler
 AppInfo = """MagickEditor
-version 1.2.0-Canary-08-01-2020
+version 1.2.0-Canary-18-01-2020
 made by Anne Mocha (@mocchapi)
 github.com/mocchapi/MagickEditor
 """
@@ -15,7 +15,7 @@ all_filetypes = [('images', '*.png'), ('images', '*.jpg'),('images','*.gif'),('i
 baseRes = 600
 config= configparser.ConfigParser()
 
-app = gui("Magiktest","500x400")
+app = gui("MagickEditor CANARY","500x400",handleArgs=False)
 app.setSize('1500x800')
 app.setBg("dark gray", override=True,tint=True)
 app.setFg("black", override=True)
@@ -24,26 +24,32 @@ app.setLocation("CENTER")
 app.startSubWindow('secret_sub')
 app.addLabel('lbl_og_path',"No image loaded")
 app.addLabel('lbl_prevtime','0')
+app.addLabel('lbl_terminalcommand','magick')
 app.stopSubWindow()
 
-def log(loginput, n=None, alert=False):
+
+
+def log(loginput, n=None, alert=False,child=False):
 	loginput = str(loginput)
 	logtime = datetime.now().strftime('%H:%M:%S')
 	if timePassed(600):
 		print(('─'*30))
-	if n==2:
-		print(f'[{logtime}] [-!-] {loginput}')
+	if alert and n!=2:
+		app.infoBox('Info',loginput)
+	if n==None:
+		indicator='[...]'
+	elif n==0:
+		indicator='[-i-]'
+	elif n==1:
+		indicator='[-✓-]'
+	elif n==2:
+		indicator='[-!-]'
 		if alert:
 			app.warningBox('Error',loginput)
+	if child:
+		print(f'[{logtime}]   ┕{indicator} {loginput}')
 	else:
-		if alert:
-			app.infoBox('Info',loginput)
-		if n==None:
-			print(f'[{logtime}] [...] {loginput}')
-		elif n==0:
-			print(f'[{logtime}] [-i-] {loginput}')
-		elif n==1:
-			print(f'[{logtime}] [-✓-] {loginput}')
+		print(f'[{logtime}] {indicator} {loginput}')
 
 def collectPlugins(folderName='Plugins'):
 	log('Collecting plugins...')
@@ -52,7 +58,7 @@ def collectPlugins(folderName='Plugins'):
 	plugins = []
 	for file in folder:
 		if file.lower().endswith('.ames'):
-			plugins = plugins + config.read(f'{folderName}\{file}')
+			plugins = plugins + [f'{folderName}/{file}']
 	log('Plugins collected',n=1)
 	log(f'Plugin list:{plugins}',n=0)
 	return plugins
@@ -91,7 +97,13 @@ def editorBtn(button):
 		app.thread(loadPreview)
 	if button == 'box_AutoOrder':
 		SafeReOrder()
-
+	if button == 'box_IM6Compatibility':
+		if app.getCheckBox('box_IM6Compatibility'):
+			log('compatibility mode on',n=0)
+			app.setLabel('lbl_terminalcommand','convert')
+		else:
+			log('compatibility mode off',n=0)
+			app.setLabel('lbl_terminalcommand',' magick')
 
 def tbFunc(button):
 	button = button.lower()
@@ -127,12 +139,8 @@ def tbFunc(button):
 def refresh_images():
 	log('refreshing images')
 	log('removing temp files')
-	try:
-		os.remove('temp_pv.gif')
-		os.remove('temp_og.gif')
-		log('temp files removed',n=0)
-	except BaseException as e:
-		log(e,n=2)
+	removeTemps()
+	log('temp files removed',n=0)
 	og_path = app.getLabel("lbl_og_path")
 	if og_path != "No image loaded":
 		loadOriginal(og_path)
@@ -148,11 +156,12 @@ def collect_args():
 		config.read_file(pluginFile)
 		order = int(app.getSpinBox(f'order_{config["info"]["name"]}'))
 		if app.getCheckBox(f'box_{config["info"]["name"]}'):
+			log(f'Loading plugin effect for {plugin}')
 			output=config['output']['output']
 			outputVar=output
 			for section in config.sections():
-				if section.startswith('input_scale_'):
-					outputVar = outputVar.replace(f'<{section}>',str(app.getScale(section[6:])))
+				if section.startswith('input:scale:'):
+					outputVar = outputVar.replace(f'<{section}>',str(app.getScale(f'scale_{config["info"]["name"]}_{section[12:]}')))
 			args = args + [(order,outputVar)]
 
 
@@ -285,7 +294,7 @@ def generateOriginal(path_input):
 	log("generating og image")
 	try:
 		try:
-			os.system(f'magick convert "{path_input}" {final_scale()} "temp_og.gif"')
+			os.system(f'{app.getLabel("lbl_terminalcommand")} "{path_input}" {final_scale()} "temp_og.gif"')
 		except BaseException as e:
 			log(e,n=2)
 		app.setLabel("lbl_og_path",path_input)
@@ -299,7 +308,7 @@ def generatePreview():
 	try:
 		try:
 			log('removing old temp_pv.gif')
-			os.remove('temp_pv.gif')
+			removeTemps(exclude='temp_og.gif')
 		except BaseException as e:
 			log(e,n=2)
 		og_image = app.getLabel("lbl_og_path")
@@ -308,8 +317,8 @@ def generatePreview():
 			return 'no_image_loaded.gif'
 		args = collect_args()
 		app.reloadImage("preview_image", 'loading.gif')
-		log(f'full command: magick "temp_og.gif" {str(args)} {final_scale()} "temp_pv.gif"',n=0)
-		magick_output = os.system(f'magick "temp_og.gif" {str(args)} {final_scale()} "temp_pv.gif"')
+		log(f'full command: {app.getLabel("lbl_terminalcommand")} "temp_og.gif" {str(args)} {final_scale()} "temp_pv.gif"',n=0)
+		magick_output = os.system(f'{app.getLabel("lbl_terminalcommand")} "temp_og.gif" {str(args)} {final_scale()} "temp_pv.gif"')
 		if magick_output > 0:
 			raise Exception
 		log('preview generated',n=0)
@@ -350,7 +359,7 @@ def saveFile(new_path):
 		new_path = f'{new_path}.png'
 	args = collect_args()
 	og_path = app.getLabel('lbl_og_path')
-	magick_output = os.system(f'magick "{og_path}" {args} "{new_path}"')
+	magick_output = os.system(f'{app.getLabel("lbl_terminalcommand")} "{og_path}" {args} "{new_path}"')
 	if magick_output >0:
 		if app.getEntry('Custom arguments') == '':
 			log(f'Magick error, check python log.',n=2,alert=True)
@@ -455,6 +464,20 @@ def AutoOrder():
 def openAbout():
 	app.infoBox('About',AppInfo)
 
+def removeTemps(exclude='None'):
+	try:
+		if os.path.exists('temp_pv.gif') and 'temp_pv.gif'!=exclude:
+			os.remove('temp_pv.gif')
+		if os.path.exists('temp_og.gif') and 'temp_og.gif'!=exclude:
+			os.remove('temp_og.gif')
+	except BaseException as e:
+		log(e,n=2)
+
+def checkStop():
+	removeTemps()
+	return True
+
+
 
 tools = ["OPEN", "SAVE", "REFRESH", "WIZARD",
         "SETTINGS", "ABOUT"]
@@ -490,7 +513,8 @@ app.stopFrame()
 
 ###prefrences window
 app.startSubWindow('preferences', transient=True)
-app.setTransparency(90)
+if os.name != 'posix':
+	app.setTransparency(90)
 app.setBg("dark gray", override=True,tint=True)
 app.setFg("black", override=True)
 app.setSize(300, 400)
@@ -500,6 +524,8 @@ app.addLabelScale("Preview Scale")
 app.setScaleRange("Preview Scale", 5, 150, curr=100)
 app.showScaleValue("Preview Scale")
 app.addNamedCheckBox('HD mode','box_HDmode')
+app.addNamedCheckBox('ImageMagick v6 compatibility mode','box_IM6Compatibility')
+app.setCheckBoxChangeFunction('box_IM6Compatibility',editorBtn)
 app.addNamedCheckBox('Automatic effect ordering','box_AutoOrder')
 app.setCheckBoxChangeFunction('box_AutoOrder',editorBtn)
 app.setCheckBox('box_AutoOrder', ticked=True,callFunction=False)
@@ -511,6 +537,7 @@ app.addButton("Apply",refresh_images)
 app.stopFrame()
 app.stopSubWindow()
 
+
 ##effects window
 app.startSubWindow('effectsWindow', title="Effects",transient=True)
 app.setBg("dark gray", override=True,tint=True)
@@ -518,7 +545,8 @@ app.setFg("black", override=True)
 app.setSize(330, 400)
 app.setSticky('nesw')
 app.setStretch('both')
-app.setTransparency(90)
+if os.name != 'posix':
+	app.setTransparency(90)
 app.startScrollPane('effects_scroll',disabled='horizontal')
 
 ##plugins babey!!
@@ -532,8 +560,8 @@ for plugin in plugins:
 	pluginName = config['info']['name']
 	AppStartEffect(pluginName)
 	for section in config.sections():
-		if section.startswith('input_'):
-			if section[6:].startswith('scale_') and section not in usedSectionNames:
+		if section.startswith('input:'):
+			if section[6:].startswith('scale:') and section not in usedSectionNames:
 				scale=config[section]
 				try:
 					current=scale['current']
@@ -551,11 +579,11 @@ for plugin in plugins:
 					single=False
 				else:
 					single=True
-				AppAddScale(section[12:],int(scale['start']),int(scale['end']),current=current,interval=interval,increment=increment,single=single)
+				AppAddScale(f'{pluginName}_{section[12:]}',int(scale['start']),int(scale['end']),current=current,interval=interval,increment=increment,single=single)
 				usedSectionNames.append(section)
 				modules=modules+1
 	pluginFile.close()
-	log('Loaded.',n=0)
+	log('Loaded.',n=0,child=True)
 	AppStopEffect(pluginName)
 
 #content aware
@@ -628,7 +656,7 @@ AppStopEffect('Pixelate')
 AppStartEffect('Animations')
 app.addOptionBox('options_Animations',['Spin','Angled Scroll'],1,1)
 AppStopEffect('Animations')
-#final
+#final (No ui code below)
 app.stopScrollPane()
 app.setSticky('esw')
 app.setStretch('column')
@@ -638,8 +666,26 @@ app.addNamedButton("Apply effects",'btn_ApplyEffects',editorBtn,0,2)
 app.stopFrame()
 app.stopSubWindow()
 
+##final initialisation
 app.showSubWindow('effectsWindow')
 view_res = baseRes*(app.getScale("Preview Scale")/100)
 log(f'Resolution: {view_res}',n=0)
+
+try:
+	system.os('magick -version')
+	log(f'Running ImageMagick v7+, no compatibility needed')
+	app.setCheckBox('box_IM6Compatibility',ticked=False)
+except:
+	log(f'Running ImageMagick v6, compatibility mode enabled')
+	app.setCheckBox('box_IM6Compatibility',ticked=True)
+
+app.setStopFunction(checkStop)
 AutoOrder()
+log(f'Initialisation completed.',n=1)
+
+terminalArgs=sys.argv
+if len(terminalArgs)>1:
+	log(f'Loading {terminalArgs[1]} via commandline',n=0)
+	loadOriginal(terminalArgs[1])
+	app.thread(loadPreview)
 app.go()
