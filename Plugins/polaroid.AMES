@@ -1,13 +1,13 @@
 [info]
 name = Polaroid
 author = anne
-version = 1.0.0
+version = 1.2.0
 
 
-[input_scale_Polaroid]
+[input:scale:Angle]
 start=-15
 end=15
 current=0
 
 [output]
-output=-polaroid <input_scale_Polaroid>
+output=-polaroid <input:scale:Polaroid>
