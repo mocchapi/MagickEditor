@@ -28,14 +28,19 @@ app.addLabel('lbl_terminalcommand','magick')
 app.stopSubWindow()
 
 
+def logThreadAlert(logtype,loginput):
+	if logtype==2:
+		app.warningBox('Error',loginput)
+	else:
+		app.infoBox('Info',loginput)
 
 def log(loginput, n=None, alert=False,child=False):
 	loginput = str(loginput)
 	logtime = datetime.now().strftime('%H:%M:%S')
 	if timePassed(600):
 		print(('─'*30))
-	if alert and n!=2:
-		app.infoBox('Info',loginput)
+	if alert:
+		app.thread(logThreadAlert,n,loginput)
 	if n==None:
 		indicator='[...]'
 	elif n==0:
@@ -44,8 +49,6 @@ def log(loginput, n=None, alert=False,child=False):
 		indicator='[-✓-]'
 	elif n==2:
 		indicator='[-!-]'
-		if alert:
-			app.warningBox('Error',loginput)
 	if child:
 		print(f'[{logtime}]   ┕{indicator} {loginput}')
 	else:
@@ -151,18 +154,26 @@ def collect_args():
 	args = []
 	##Plugins
 	for plugin in plugins:
-		log(f'Loading plugin effect for {plugin}')
 		pluginFile=open(plugin)
 		config.read_file(pluginFile)
+		pluginName = config['info']['name']
+		print(f'plugin:{plugin}')
 		order = int(app.getSpinBox(f'order_{config["info"]["name"]}'))
 		if app.getCheckBox(f'box_{config["info"]["name"]}'):
 			log(f'Loading plugin effect for {plugin}')
 			output=config['output']['output']
 			outputVar=output
+			print(config.sections())
 			for section in config.sections():
 				if section.startswith('input:scale:'):
-					outputVar = outputVar.replace(f'<{section}>',str(app.getScale(f'scale_{config["info"]["name"]}_{section[12:]}')))
+					try:
+						outputVar = outputVar.replace(f'<{section}>',str(app.getScale(f'scale_{pluginName}_{section[12:]}')))
+					except BaseException as e:
+						pass
+			if '<' in outputVar and '>' in outputVar:
+				log(f'Potential unhandled variable: "{outputVar}"',n==2,child=True)
 			args = args + [(order,outputVar)]
+		pluginFile.close()
 
 
 	#content aware
