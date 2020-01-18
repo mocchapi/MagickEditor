@@ -157,13 +157,11 @@ def collect_args():
 		pluginFile=open(plugin)
 		config.read_file(pluginFile)
 		pluginName = config['info']['name']
-		print(f'plugin:{plugin}')
 		order = int(app.getSpinBox(f'order_{config["info"]["name"]}'))
 		if app.getCheckBox(f'box_{config["info"]["name"]}'):
 			log(f'Loading plugin effect for {plugin}')
 			output=config['output']['output']
 			outputVar=output
-			print(config.sections())
 			for section in config.sections():
 				if section.startswith('input:scale:'):
 					try:
@@ -171,7 +169,7 @@ def collect_args():
 					except BaseException as e:
 						pass
 			if '<' in outputVar and '>' in outputVar:
-				log(f'Potential unhandled variable: "{outputVar}"',n==2,child=True)
+				log(f'Potential unhandled variable: "{outputVar}"',n=2,child=True)
 			args = args + [(order,outputVar)]
 		pluginFile.close()
 
@@ -434,18 +432,18 @@ def SafeReOrder(verbal=False):
 	for name,value in boxes.items():
 		if autoOrdered:
 			if verbal:
-				print(f'{value}=={order}?')
+				log(f'{value}=={order}?')
 			if value != str(order):
 				mismatch = True
 				if verbal:
-					print('mismatch')
+					log('mismatch')
 		else:
 			if verbal:
-				print(f'{value}==0?')
+				log(f'{value}==0?')
 			if value != '0':
 				mismatch = True
 				if verbal:
-					print('mismatch')
+					log('mismatch')
 		order+=1
 	log('Check completed',n=1)
 	if mismatch == False:
