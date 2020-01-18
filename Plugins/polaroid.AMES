@@ -10,4 +10,4 @@ end=15
 current=0
 
 [output]
-output=-polaroid <input:scale:Polaroid>
+output=-polaroid <input:scale:Angle>
