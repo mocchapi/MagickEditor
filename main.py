@@ -6,8 +6,9 @@ import os
 import sys
 from operator import itemgetter
 import configparser
-AppInfo = """MagickEditor
-version 1.2.0-Canary-18-01-2020
+version='1.2.0'
+AppInfo = f"""MagickEditor
+version {version}
 made by Anne Mocha (@mocchapi)
 github.com/mocchapi/MagickEditor
 """
@@ -163,11 +164,17 @@ def collect_args():
 			output=config['output']['output']
 			outputVar=output
 			for section in config.sections():
-				if section.startswith('input:scale:'):
-					try:
-						outputVar = outputVar.replace(f'<{section}>',str(app.getScale(f'scale_{pluginName}_{section[12:]}')))
-					except BaseException as e:
-						pass
+				if section.startswith('input:'):
+					if section[6:].startswith('optionbox'):
+						try:
+							outputVar = outputVar.replace(f'<{section}>',str(app.getOptionBox(f'optionbox_{pluginName}_{section[16:]}')))
+						except BaseException as e:
+							pass
+					if section[6:].startswith('scale:'):
+						try:
+							outputVar = outputVar.replace(f'<{section}>',str(app.getScale(f'scale_{pluginName}_{section[12:]}')))
+						except BaseException as e:
+							pass
 			if '<' in outputVar and '>' in outputVar:
 				log(f'Potential unhandled variable: "{outputVar}"',n=2,child=True)
 			args = args + [(order,outputVar)]
@@ -379,10 +386,11 @@ def saveFile(new_path):
 
 
 scaleList = ['start','end','x','interval','current','increment','label']
-def AppAddScale(name,start,end,y=None,x=1,interval=None,current=None,increment=None,label=None,single=True):
+def AppAddScale(name,start,end,y=None,x=1,interval=None,current=None,increment=None,label=None,single=True,tooltip=None):
 	if label != None:
 		app.addLabel(f'scalelbl_{name}',label,y,x)
 		x=x+1
+		single=False
 	if y==None:
 		if single==True:
 			y=0
@@ -393,6 +401,9 @@ def AppAddScale(name,start,end,y=None,x=1,interval=None,current=None,increment=N
 			y=row
 	try:
 		app.addScale(f'scale_{name}',y,x)
+		if tooltip!=None:
+			app.setScaleTooltip(f'scale_{name}',tooltip)
+			app.enableScaleTooltip(f'scale_{name}')
 		if current==None:
 			current = start
 		app.setScaleRange(f'scale_{name}', start,end,curr=current)
@@ -407,11 +418,30 @@ def AppAddScale(name,start,end,y=None,x=1,interval=None,current=None,increment=N
 	except BaseException as e:
 		log(e,n=2)
 
-def AppStartEffect(name,label=None):
+def appAddOptionbox(name,optionList,label=None,single=True,x=1,tooltip=None):
+	if label != None:
+		app.addLabel(f'optionboxlbl_{name}',y,x)
+		x=x+1
+		single=False
+	if single == True:
+		y=0
+	else:
+		row=app.getRow()
+		if row ==1:
+			row=row+1
+		y=row
+	app.addOptionBox(f'optionbox_{name}',optionList,y,x)
+	if tooltip!=None:
+		app.setOptionBoxTooltip(f'optionbox_{name}',tooltip)
+		app.enableOptionBoxTooltip(f'optionbox_{name}')
+
+def AppStartEffect(name,label=None,author='unknown',version='unknown'):
 	if label == None:
 		label = name
 	app.startLabelFrame(f'frame_{name}',label=label)
 	app.addNamedCheckBox('Enable',f'box_{name}', 0,0)
+	app.setCheckBoxTooltip(f'box_{name}',f'{name}\nBy: {author}\nVersion: {version}')
+	app.enableCheckBoxTooltip(f'box_{name}')
 
 def AppStopEffect(name,x=0):
 	y=app.getRow()+10
@@ -567,11 +597,25 @@ for plugin in plugins:
 	pluginFile=open(plugin)
 	config.read_file(pluginFile)
 	pluginName = config['info']['name']
-	AppStartEffect(pluginName)
+	AppStartEffect(pluginName,author=config['info']['author'],version=config['info']['version'])
 	for section in config.sections():
 		if section.startswith('input:'):
+			if section[6:].startswith('optionbox:'):
+				optionbox=config[section]
+				try:
+					tooltip=optionbox['tooltip']
+				except:
+					tooltip=None
+				if modules>0:
+					single=False
+				appAddOptionbox(f'{pluginName}_{section[16:]}',optionbox['options'].split(','),single=single,tooltip=tooltip)
+				modules=modules+1
 			if section[6:].startswith('scale:') and section not in usedSectionNames:
 				scale=config[section]
+				try:
+					tooltip=scale['tooltip']
+				except:
+					tooltip=None
 				try:
 					current=scale['current']
 				except:
@@ -588,7 +632,7 @@ for plugin in plugins:
 					single=False
 				else:
 					single=True
-				AppAddScale(f'{pluginName}_{section[12:]}',int(scale['start']),int(scale['end']),current=current,interval=interval,increment=increment,single=single)
+				AppAddScale(f'{pluginName}_{section[12:]}',int(scale['start']),int(scale['end']),current=current,interval=interval,increment=increment,single=single,tooltip=tooltip)
 				usedSectionNames.append(section)
 				modules=modules+1
 	pluginFile.close()
