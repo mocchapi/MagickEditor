@@ -1,0 +1,18 @@
+[info]
+name = Color dither
+author = anne
+version = 1.0.0
+
+[input:scale:colorAmount]
+start=0
+end=64
+current=3
+increment=3
+tooltip=Amount of colors
+
+[input:optionbox:ditherType]
+options=None,Riemersma,FloydSteinberg
+tooltip=Dither type
+
+[output]
+output=-dither <input:optionbox:ditherType> -colors <input:scale:colorAmount>

@@ -1,0 +1,14 @@
+[info]
+name = Posterize
+author = anne
+version = 1.0.0
+
+
+[input:scale:posterize]
+start=0
+end=15
+current=15
+tooltip=Amount of posterization
+
+[output]
+output=+dither -posterize <input:scale:posterize>
