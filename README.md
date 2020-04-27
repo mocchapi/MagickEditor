@@ -1,3 +1,6 @@
+
+## yo this is dead af
+___
 ## MagickEditor
 MagickEditor is a python program providing an UI for imagemagick.
 It has been tested on Manjaro linux and windows 10
